@@ -1,0 +1,383 @@
+import Cocoa
+import Carbon
+import ApplicationServices
+
+// MARK: - Custom Shortcut Configuration
+
+/// Represents a custom keyboard shortcut
+struct CustomShortcut: Codable, Equatable {
+    var keyCode: UInt16
+    var modifiers: UInt32  // Carbon modifier flags
+
+    /// Human-readable representation
+    var displayString: String {
+        var parts: [String] = []
+
+        if modifiers & UInt32(cmdKey) != 0 { parts.append("⌘") }
+        if modifiers & UInt32(optionKey) != 0 { parts.append("⌥") }
+        if modifiers & UInt32(controlKey) != 0 { parts.append("⌃") }
+        if modifiers & UInt32(shiftKey) != 0 { parts.append("⇧") }
+
+        if let keyString = keyCodeToString(keyCode) {
+            parts.append(keyString)
+        }
+
+        return parts.joined()
+    }
+
+    private func keyCodeToString(_ keyCode: UInt16) -> String? {
+        let specialKeys: [UInt16: String] = [
+            0x24: "↩︎",  // Return
+            0x30: "⇥",  // Tab
+            0x31: "␣",  // Space
+            0x33: "⌫",  // Delete
+            0x35: "⎋",  // Escape
+            0x7B: "←",
+            0x7C: "→",
+            0x7D: "↓",
+            0x7E: "↑",
+            0x73: "Home",
+            0x77: "End",
+            0x74: "PgUp",
+            0x79: "PgDn",
+        ]
+
+        if let special = specialKeys[keyCode] {
+            return special
+        }
+
+        // For regular keys, try to get the character
+        let source = TISCopyCurrentKeyboardInputSource().takeRetainedValue()
+        guard let layoutData = TISGetInputSourceProperty(source, kTISPropertyUnicodeKeyLayoutData) else {
+            return "Key\(keyCode)"
+        }
+
+        let dataRef = unsafeBitCast(layoutData, to: CFData.self)
+        let layoutPtr = unsafeBitCast(CFDataGetBytePtr(dataRef), to: UnsafePointer<UCKeyboardLayout>.self)
+
+        var deadKeyState: UInt32 = 0
+        var chars = [UniChar](repeating: 0, count: 4)
+        var length: Int = 0
+
+        let result = UCKeyTranslate(
+            layoutPtr,
+            keyCode,
+            UInt16(kUCKeyActionDisplay),
+            0,
+            UInt32(LMGetKbdType()),
+            UInt32(kUCKeyTranslateNoDeadKeysBit),
+            &deadKeyState,
+            4,
+            &length,
+            &chars
+        )
+
+        if result == noErr && length > 0 {
+            return String(utf16CodeUnits: chars, count: length).uppercased()
+        }
+
+        return "Key\(keyCode)"
+    }
+}
+
+// MARK: - Custom Shortcut Storage
+
+class CustomShortcutManager {
+    static let shared = CustomShortcutManager()
+
+    private let storageKey = "CustomShortcuts"
+
+    /// Get custom shortcut for a rule
+    func getShortcut(for ruleId: UUID) -> CustomShortcut? {
+        guard let data = UserDefaults.standard.data(forKey: storageKey),
+              let shortcuts = try? JSONDecoder().decode([String: CustomShortcut].self, from: data) else {
+            return nil
+        }
+        return shortcuts[ruleId.uuidString]
+    }
+
+    /// Set custom shortcut for a rule
+    func setShortcut(_ shortcut: CustomShortcut, for ruleId: UUID) {
+        var shortcuts = getAllShortcuts()
+        shortcuts[ruleId.uuidString] = shortcut
+        saveShortcuts(shortcuts)
+    }
+
+    /// Remove shortcut for a rule
+    func removeShortcut(for ruleId: UUID) {
+        var shortcuts = getAllShortcuts()
+        shortcuts.removeValue(forKey: ruleId.uuidString)
+        saveShortcuts(shortcuts)
+    }
+
+    private func getAllShortcuts() -> [String: CustomShortcut] {
+        guard let data = UserDefaults.standard.data(forKey: storageKey),
+              let shortcuts = try? JSONDecoder().decode([String: CustomShortcut].self, from: data) else {
+            return [:]
+        }
+        return shortcuts
+    }
+
+    private func saveShortcuts(_ shortcuts: [String: CustomShortcut]) {
+        if let data = try? JSONEncoder().encode(shortcuts) {
+            UserDefaults.standard.set(data, forKey: storageKey)
+        }
+    }
+}
+
+// MARK: - System Actions Manager
+
+/// Executes system-level actions (non-window actions)
+class SystemActionsManager {
+    static let shared = SystemActionsManager()
+
+    // MARK: - Execute Action
+
+    /// Execute a non-window action
+    /// - Parameters:
+    ///   - action: The action to execute
+    ///   - ruleId: Optional rule ID for custom shortcut lookup
+    /// - Returns: Whether the action was executed successfully
+    @discardableResult
+    func execute(_ action: WindowAction, ruleId: UUID? = nil) -> Bool {
+        switch action {
+        // ============================================
+        // Desktop & System Actions
+        // ============================================
+        case .missionControl:
+            return simulateKeyPress(keyCode: 0x60, modifiers: CGEventFlags.maskControl)  // Ctrl+F3 or use specific key
+
+        case .showDesktop:
+            return simulateFunctionKey(.f11)
+
+        case .appExpose:
+            return simulateKeyPress(keyCode: 0x7D, modifiers: CGEventFlags.maskControl)  // Ctrl+Down
+
+        case .launchpad:
+            return simulateFunctionKey(.f4)
+
+        case .spotlight:
+            return simulateKeyPress(keyCode: 0x31, modifiers: CGEventFlags.maskCommand)  // Cmd+Space
+
+        case .lockScreen:
+            return lockScreen()
+
+        case .startScreensaver:
+            return startScreensaver()
+
+        // ============================================
+        // Space Navigation
+        // ============================================
+        case .spaceLeft:
+            return simulateKeyPress(keyCode: 0x7B, modifiers: CGEventFlags.maskControl)  // Ctrl+Left
+
+        case .spaceRight:
+            return simulateKeyPress(keyCode: 0x7C, modifiers: CGEventFlags.maskControl)  // Ctrl+Right
+
+        case .moveToNextSpace:
+            // Move window to next space - this is complex and requires private APIs
+            print("[SystemActions] moveToNextSpace not yet implemented")
+            return false
+
+        case .moveToPrevSpace:
+            print("[SystemActions] moveToPrevSpace not yet implemented")
+            return false
+
+        // ============================================
+        // Application Actions
+        // ============================================
+        case .quitApp:
+            return simulateKeyPress(keyCode: 0x0C, modifiers: CGEventFlags.maskCommand)  // Cmd+Q
+
+        case .hideApp:
+            return simulateKeyPress(keyCode: 0x04, modifiers: CGEventFlags.maskCommand)  // Cmd+H
+
+        case .hideOthers:
+            return simulateKeyPress(keyCode: 0x04, modifiers: [CGEventFlags.maskCommand, CGEventFlags.maskAlternate])  // Cmd+Opt+H
+
+        case .switchApp:
+            return simulateKeyPress(keyCode: 0x30, modifiers: CGEventFlags.maskCommand)  // Cmd+Tab
+
+        case .previousApp:
+            return simulateKeyPress(keyCode: 0x30, modifiers: [CGEventFlags.maskCommand, CGEventFlags.maskShift])  // Cmd+Shift+Tab
+
+        // ============================================
+        // Custom Shortcut
+        // ============================================
+        case .customShortcut:
+            guard let ruleId = ruleId,
+                  let shortcut = CustomShortcutManager.shared.getShortcut(for: ruleId) else {
+                print("[SystemActions] No custom shortcut configured")
+                return false
+            }
+            return executeCustomShortcut(shortcut)
+
+        // ============================================
+        // Extended Window Control (handled by WindowManager)
+        // ============================================
+        case .maximizeHeight:
+            return WindowManager.shared.maximizeHeight()
+
+        case .maximizeWidth:
+            return WindowManager.shared.maximizeWidth()
+
+        case .minimizeAll:
+            return minimizeAllWindows()
+
+        case .restoreAllMinimized:
+            return restoreAllMinimizedWindows()
+
+        default:
+            // Other actions (window layout, etc.) should be handled by WindowManager
+            return false
+        }
+    }
+
+    // MARK: - Keyboard Simulation
+
+    private func simulateKeyPress(keyCode: CGKeyCode, modifiers: CGEventFlags) -> Bool {
+        let source = CGEventSource(stateID: .combinedSessionState)
+
+        // Create key down event
+        guard let keyDown = CGEvent(keyboardEventSource: source, virtualKey: keyCode, keyDown: true) else {
+            print("[SystemActions] Failed to create key down event")
+            return false
+        }
+        keyDown.flags = modifiers
+
+        // Create key up event
+        guard let keyUp = CGEvent(keyboardEventSource: source, virtualKey: keyCode, keyDown: false) else {
+            print("[SystemActions] Failed to create key up event")
+            return false
+        }
+        keyUp.flags = modifiers
+
+        // Post events
+        keyDown.post(tap: .cghidEventTap)
+        keyUp.post(tap: .cghidEventTap)
+
+        print("[SystemActions] Simulated key press: \(keyCode) with modifiers: \(modifiers.rawValue)")
+        return true
+    }
+
+    private enum FunctionKey {
+        case f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12
+
+        var keyCode: CGKeyCode {
+            switch self {
+            case .f1: return 0x7A
+            case .f2: return 0x78
+            case .f3: return 0x63
+            case .f4: return 0x76
+            case .f5: return 0x60
+            case .f6: return 0x61
+            case .f7: return 0x62
+            case .f8: return 0x64
+            case .f9: return 0x65
+            case .f10: return 0x6D
+            case .f11: return 0x67
+            case .f12: return 0x6F
+            }
+        }
+    }
+
+    private func simulateFunctionKey(_ key: FunctionKey) -> Bool {
+        let source = CGEventSource(stateID: .combinedSessionState)
+
+        guard let keyDown = CGEvent(keyboardEventSource: source, virtualKey: key.keyCode, keyDown: true),
+              let keyUp = CGEvent(keyboardEventSource: source, virtualKey: key.keyCode, keyDown: false) else {
+            return false
+        }
+
+        keyDown.post(tap: .cghidEventTap)
+        keyUp.post(tap: .cghidEventTap)
+
+        print("[SystemActions] Simulated function key: \(key)")
+        return true
+    }
+
+    private func executeCustomShortcut(_ shortcut: CustomShortcut) -> Bool {
+        // Convert Carbon modifiers to CGEventFlags
+        var flags = CGEventFlags()
+
+        if shortcut.modifiers & UInt32(cmdKey) != 0 {
+            flags.insert(.maskCommand)
+        }
+        if shortcut.modifiers & UInt32(optionKey) != 0 {
+            flags.insert(.maskAlternate)
+        }
+        if shortcut.modifiers & UInt32(controlKey) != 0 {
+            flags.insert(.maskControl)
+        }
+        if shortcut.modifiers & UInt32(shiftKey) != 0 {
+            flags.insert(.maskShift)
+        }
+
+        return simulateKeyPress(keyCode: CGKeyCode(shortcut.keyCode), modifiers: flags)
+    }
+
+    // MARK: - System Commands
+
+    private func lockScreen() -> Bool {
+        let task = Process()
+        task.launchPath = "/usr/bin/pmset"
+        task.arguments = ["displaysleepnow"]
+
+        do {
+            try task.run()
+            print("[SystemActions] Lock screen executed")
+            return true
+        } catch {
+            print("[SystemActions] Lock screen failed: \(error)")
+            return false
+        }
+    }
+
+    private func startScreensaver() -> Bool {
+        let result = NSWorkspace.shared.open(URL(fileURLWithPath: "/System/Library/CoreServices/ScreenSaverEngine.app"))
+        print("[SystemActions] Start screensaver: \(result)")
+        return result
+    }
+
+    private func minimizeAllWindows() -> Bool {
+        // Use AppleScript for reliability
+        let script = """
+        tell application "System Events"
+            set frontApp to name of first application process whose frontmost is true
+            tell application frontApp to set miniaturized of every window to true
+        end tell
+        """
+
+        return runAppleScript(script)
+    }
+
+    private func restoreAllMinimizedWindows() -> Bool {
+        // Use AppleScript to restore minimized windows
+        let script = """
+        tell application "System Events"
+            set frontApp to name of first application process whose frontmost is true
+            tell application frontApp to set miniaturized of every window to false
+        end tell
+        """
+
+        return runAppleScript(script)
+    }
+
+    private func runAppleScript(_ source: String) -> Bool {
+        guard let script = NSAppleScript(source: source) else {
+            print("[SystemActions] Failed to create AppleScript")
+            return false
+        }
+
+        var error: NSDictionary?
+        script.executeAndReturnError(&error)
+
+        if let error = error {
+            print("[SystemActions] AppleScript error: \(error)")
+            return false
+        }
+
+        print("[SystemActions] AppleScript executed successfully")
+        return true
+    }
+}
