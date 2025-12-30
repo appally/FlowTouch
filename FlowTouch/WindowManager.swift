@@ -94,6 +94,58 @@ class WindowManager {
         }
     }
 
+    /// Undo the last window operation (thread-safe)
+    /// Returns true if undo was successful
+    @discardableResult
+    func undoLastOperation() -> Bool {
+        if Thread.isMainThread {
+            return undoLastOperationOnMain()
+        } else {
+            return DispatchQueue.main.sync { [weak self] in
+                self?.undoLastOperationOnMain() ?? false
+            }
+        }
+    }
+
+    private func undoLastOperationOnMain() -> Bool {
+        guard let lastOp = lastOperationWindow else {
+            print("[WindowManager] No operation to undo")
+            return false
+        }
+
+        // Find the window by PID and try to restore its position
+        let app = AXUIElementCreateApplication(lastOp.pid)
+
+        var windowsRef: CFTypeRef?
+        let result = AXUIElementCopyAttributeValue(app, kAXWindowsAttribute as CFString, &windowsRef)
+        guard result == .success, let windows = windowsRef as? [AXUIElement] else {
+            print("[WindowManager] Could not get windows for PID \(lastOp.pid)")
+            return false
+        }
+
+        // Find the window with matching identifier
+        for window in windows {
+            let windowId = getWindowIdentifier(window) ?? "default"
+            if windowId == lastOp.windowId {
+                // Restore to previous frame
+                let success = setWindowFrame(window, frame: lastOp.previousFrame)
+                if success {
+                    print("[WindowManager] Undo successful: restored window to \(lastOp.previousFrame)")
+                    lastOperationWindow = nil  // Clear undo state after successful undo
+                }
+                return success
+            }
+        }
+
+        print("[WindowManager] Could not find window to undo")
+        return false
+    }
+
+    /// Check if there's an operation that can be undone
+    var canUndo: Bool {
+        return lastOperationWindow != nil
+    }
+
     /// Close the focused window (thread-safe)
     @discardableResult
     func closeFocusedWindow() -> Bool {

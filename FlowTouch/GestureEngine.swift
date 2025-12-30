@@ -534,6 +534,9 @@ class GestureEngine {
         case .fullscreen:
             WindowManager.shared.toggleFullscreen()
 
+        case .undo:
+            WindowManager.shared.undoLastOperation()
+
         // Extended window control - use SystemActionsManager
         case .maximizeHeight, .maximizeWidth, .minimizeAll, .restoreAllMinimized:
             SystemActionsManager.shared.execute(action)

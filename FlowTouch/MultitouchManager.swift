@@ -112,11 +112,8 @@ class MultitouchManager: ObservableObject {
 
         // Check 3-finger conflicts
         if threeFingerSwipe || threeFingerDrag {
-            let threeFingerRules = rules.filter {
-                if case .swipe(let fingers, _) = $0.trigger, fingers == 3 {
-                    return true
-                }
-                return false
+            let threeFingerRules = rules.filter { rule in
+                rule.trigger.type == .swipe && rule.trigger.fingerCount == 3
             }
             if !threeFingerRules.isEmpty {
                 conflicts.append(SystemGestureConflict(
@@ -130,12 +127,10 @@ class MultitouchManager: ObservableObject {
 
         // Check 4-finger vertical conflicts (Mission Control)
         if missionControl > 0 {
-            let fourFingerVerticalRules = rules.filter {
-                if case .swipe(let fingers, let dir) = $0.trigger,
-                   fingers == 4 && (dir == .up || dir == .down) {
-                    return true
-                }
-                return false
+            let fourFingerVerticalRules = rules.filter { rule in
+                rule.trigger.type == .swipe &&
+                rule.trigger.fingerCount == 4 &&
+                (rule.trigger.swipeDirection == .up || rule.trigger.swipeDirection == .down)
             }
             if !fourFingerVerticalRules.isEmpty {
                 conflicts.append(SystemGestureConflict(
@@ -149,12 +144,10 @@ class MultitouchManager: ObservableObject {
 
         // Check 4-finger horizontal conflicts (Space switching)
         if appExpose > 0 {
-            let fourFingerHorizontalRules = rules.filter {
-                if case .swipe(let fingers, let dir) = $0.trigger,
-                   fingers == 4 && (dir == .left || dir == .right) {
-                    return true
-                }
-                return false
+            let fourFingerHorizontalRules = rules.filter { rule in
+                rule.trigger.type == .swipe &&
+                rule.trigger.fingerCount == 4 &&
+                (rule.trigger.swipeDirection == .left || rule.trigger.swipeDirection == .right)
             }
             if !fourFingerHorizontalRules.isEmpty {
                 conflicts.append(SystemGestureConflict(
@@ -168,11 +161,8 @@ class MultitouchManager: ObservableObject {
 
         // Check pinch conflicts (Launchpad)
         if launchpad {
-            let pinchRules = rules.filter {
-                if case .pinch = $0.trigger {
-                    return true
-                }
-                return false
+            let pinchRules = rules.filter { rule in
+                rule.trigger.type == .pinch
             }
             if !pinchRules.isEmpty {
                 conflicts.append(SystemGestureConflict(

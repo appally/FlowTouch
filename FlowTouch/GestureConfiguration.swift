@@ -30,6 +30,7 @@ enum WindowAction: String, Codable, CaseIterable, Identifiable {
     case minimize = "minimize"
     case close = "close"
     case fullscreen = "fullscreen"
+    case undo = "undo"  // Undo last window operation
 
     // Extended window control
     case maximizeHeight = "maximize_height"
@@ -98,6 +99,7 @@ enum WindowAction: String, Codable, CaseIterable, Identifiable {
         case .minimize: return "最小化"
         case .close: return "关闭"
         case .fullscreen: return "全屏"
+        case .undo: return "撤销"
         case .maximizeHeight: return "垂直最大化"
         case .maximizeWidth: return "水平最大化"
         case .minimizeAll: return "全部最小化"
@@ -148,6 +150,7 @@ enum WindowAction: String, Codable, CaseIterable, Identifiable {
         case .minimize: return "最小化"
         case .close: return "关闭"
         case .fullscreen: return "全屏"
+        case .undo: return "撤销"
         case .maximizeHeight: return "↕最大"
         case .maximizeWidth: return "↔最大"
         case .minimizeAll: return "全最小"
@@ -199,6 +202,7 @@ enum WindowAction: String, Codable, CaseIterable, Identifiable {
         case .minimize: return "minus"
         case .close: return "xmark"
         case .fullscreen: return "arrow.up.forward.and.arrow.down.backward"
+        case .undo: return "arrow.uturn.backward"
         case .maximizeHeight: return "arrow.up.and.down"
         case .maximizeWidth: return "arrow.left.and.right"
         case .minimizeAll: return "menubar.dock.rectangle"
@@ -264,7 +268,7 @@ enum WindowAction: String, Codable, CaseIterable, Identifiable {
         case .snapLeft, .snapRight, .snapTop, .snapBottom,
              .snapTopLeft, .snapTopRight, .snapBottomLeft, .snapBottomRight:
             return .layout
-        case .maximize, .center, .restore, .minimize, .close, .fullscreen,
+        case .maximize, .center, .restore, .minimize, .close, .fullscreen, .undo,
              .maximizeHeight, .maximizeWidth, .minimizeAll, .restoreAllMinimized:
             return .window
         case .moveToNextScreen, .moveToPrevScreen, .moveToNextSpace, .moveToPrevSpace,

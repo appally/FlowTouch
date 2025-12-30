@@ -189,14 +189,40 @@ class RuleManager: ObservableObject {
 
     private let storageKey = "GestureRules_v2"
 
+    // Cache for current app rules to avoid repeated filtering
+    private var cachedBundleId: String?
+    private var cachedRules: [GestureRule]?
+    private var cacheTimestamp: Date?
+    private let cacheTimeout: TimeInterval = 0.5  // Cache valid for 500ms
+
     @Published var rules: [GestureRule] = [] {
         didSet {
             save()
+            invalidateCache()  // Invalidate cache when rules change
         }
     }
 
     private init() {
         load()
+        setupAppSwitchObserver()
+    }
+
+    /// Invalidate the rule cache
+    private func invalidateCache() {
+        cachedBundleId = nil
+        cachedRules = nil
+        cacheTimestamp = nil
+    }
+
+    /// Setup observer for app activation changes
+    private func setupAppSwitchObserver() {
+        NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.didActivateApplicationNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            self?.invalidateCache()
+        }
     }
 
     // MARK: - CRUD Operations
@@ -262,7 +288,17 @@ class RuleManager: ObservableObject {
             return rules.filter { $0.scope.isGlobal && $0.isEnabled }
         }
 
-        return rules.filter { rule in
+        // Check cache validity
+        if let cached = cachedRules,
+           let cachedId = cachedBundleId,
+           let timestamp = cacheTimestamp,
+           cachedId == bundleId,
+           Date().timeIntervalSince(timestamp) < cacheTimeout {
+            return cached
+        }
+
+        // Rebuild cache
+        let applicableRules = rules.filter { rule in
             guard rule.isEnabled else { return false }
 
             switch rule.scope {
@@ -272,9 +308,16 @@ class RuleManager: ObservableObject {
                 return ruleBundleId == bundleId
             }
         }
+
+        // Store in cache
+        cachedBundleId = bundleId
+        cachedRules = applicableRules
+        cacheTimestamp = Date()
+
+        return applicableRules
     }
 
-    /// 查找匹配的规则（用于手势引擎）
+    /// 查找匹配的规则（用于手势引擎）- 使用缓存优化
     func findMatchingRule(trigger: GestureTrigger) -> GestureRule? {
         let applicableRules = rulesForCurrentApp()
 
