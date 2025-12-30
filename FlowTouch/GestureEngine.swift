@@ -50,6 +50,13 @@ class GestureEngine {
 
     // Preview state
     private var currentPreviewDirection: SnapDirection?
+    private var pendingPreviewDirection: SnapDirection?
+    private var previewDebounceTimer: Timer?
+    private let previewDebounceInterval: TimeInterval = 0.08  // 80ms debounce
+
+    // Learning mode - shows gesture recognition without executing actions
+    private(set) var isLearningMode: Bool = false
+    private var learningModeCallback: ((String, String) -> Void)?  // (gesture, action)
 
     // Tap detection state
     private var tapCount: Int = 0
@@ -70,9 +77,34 @@ class GestureEngine {
     private let fastSwipeMultiplier: Float = 0.7
 
     // Tap constants
-    private let tapMovementThreshold: Float = 0.035  // More tolerant for multi-finger
-    private let tapMaxDuration: TimeInterval = 0.35  // Allow slightly longer taps
-    private let tapSequenceTimeout: TimeInterval = 0.18  // Faster double-tap detection
+    private let tapMovementThreshold: Float = 0.045  // More tolerant for multi-finger (increased from 0.035)
+    private let tapMaxDuration: TimeInterval = 0.40  // Allow slightly longer taps (increased from 0.35)
+    private let tapSequenceTimeout: TimeInterval = 0.30  // Comfortable double-tap interval (increased from 0.18)
+
+    // Direction unlock constants
+    private let directionUnlockAngle: Float = 60  // Degrees: allow direction change if angle diff > this
+    private let directionConfirmDistance: Float = 0.06  // Minimum distance before allowing direction update
+
+    // MARK: - Learning Mode API
+
+    /// Enable learning mode - gestures will be recognized but not executed
+    /// The callback receives (gestureName, actionName) for each recognized gesture
+    func enableLearningMode(callback: @escaping (String, String) -> Void) {
+        isLearningMode = true
+        learningModeCallback = callback
+        #if DEBUG
+        print("[GestureEngine] Learning mode enabled")
+        #endif
+    }
+
+    /// Disable learning mode - return to normal gesture execution
+    func disableLearningMode() {
+        isLearningMode = false
+        learningModeCallback = nil
+        #if DEBUG
+        print("[GestureEngine] Learning mode disabled")
+        #endif
+    }
 
     // MARK: - Rule Matching
 
@@ -312,7 +344,7 @@ class GestureEngine {
                 #if DEBUG
                 print("[GestureEngine] Pinch in triggered, ratio: \(pinchRatio), action: \(action)")
                 #endif
-                executeAction(action, timestamp: timestamp)
+                executeAction(action, timestamp: timestamp, gestureName: "捏合")
                 return
             }
 
@@ -322,15 +354,29 @@ class GestureEngine {
                 #if DEBUG
                 print("[GestureEngine] Pinch out triggered, ratio: \(pinchRatio), action: \(action)")
                 #endif
-                executeAction(action, timestamp: timestamp)
+                executeAction(action, timestamp: timestamp, gestureName: "张开")
                 return
             }
         }
 
         // Check for swipe
         if distance > effectiveThreshold * 0.6 {
-            // Show preview
-            let direction = lockedDirection ?? determineSwipeDirection(dx: dx, dy: dy)
+            // Determine current direction
+            let currentDirection = determineSwipeDirection(dx: dx, dy: dy)
+
+            // Direction unlock: allow updating locked direction if user significantly changed direction
+            if let locked = lockedDirection, distance > directionConfirmDistance {
+                let angleDiff = angleDifference(from: locked, to: currentDirection)
+                if angleDiff > directionUnlockAngle {
+                    lockedDirection = currentDirection
+                    #if DEBUG
+                    print("[GestureEngine] Direction unlocked: \(locked.displayName) -> \(currentDirection.displayName), angleDiff: \(angleDiff)°")
+                    #endif
+                }
+            }
+
+            // Use locked direction if available, otherwise use current
+            let direction = lockedDirection ?? currentDirection
             let action = getSwipeAction(fingerCount: fingerCount, direction: direction)
 
             if let snapDir = action.snapDirection {
@@ -339,10 +385,11 @@ class GestureEngine {
 
             // Execute when threshold fully met
             if distance > effectiveThreshold {
+                let gestureName = "\(fingerCount)指\(direction.displayName)滑"
                 #if DEBUG
                 print("[GestureEngine] Swipe executed: \(fingerCount)F \(direction.displayName) -> \(action), distance: \(distance), threshold: \(effectiveThreshold)")
                 #endif
-                executeAction(action, timestamp: timestamp)
+                executeAction(action, timestamp: timestamp, gestureName: gestureName)
             }
         }
     }
@@ -378,26 +425,91 @@ class GestureEngine {
         }
     }
 
+    /// Get the angle (in degrees) for a SwipeDirection
+    private func angleForDirection(_ direction: SwipeDirection) -> Float {
+        switch direction {
+        case .right: return 0
+        case .topRight: return 45
+        case .up: return 90
+        case .topLeft: return 135
+        case .left: return 180
+        case .bottomLeft: return -135
+        case .down: return -90
+        case .bottomRight: return -45
+        }
+    }
+
+    /// Calculate the absolute angle difference between two directions (0-180)
+    private func angleDifference(from dir1: SwipeDirection, to dir2: SwipeDirection) -> Float {
+        let angle1 = angleForDirection(dir1)
+        let angle2 = angleForDirection(dir2)
+        var diff = abs(angle1 - angle2)
+        if diff > 180 {
+            diff = 360 - diff
+        }
+        return diff
+    }
+
     // MARK: - Preview
 
     private func showPreview(for direction: SnapDirection) {
-        guard direction != currentPreviewDirection else { return }
-        currentPreviewDirection = direction
-        FeedbackHUD.shared.showSnapPreview(direction: direction)
+        // If same as current, nothing to do
+        guard direction != currentPreviewDirection else {
+            pendingPreviewDirection = nil
+            previewDebounceTimer?.invalidate()
+            return
+        }
+
+        // If same as pending, let the timer continue
+        if direction == pendingPreviewDirection {
+            return
+        }
+
+        // Set pending direction and start debounce timer
+        pendingPreviewDirection = direction
+        previewDebounceTimer?.invalidate()
+
+        // Use main thread for timer
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else { return }
+
+            self.previewDebounceTimer = Timer.scheduledTimer(withTimeInterval: self.previewDebounceInterval, repeats: false) { [weak self] _ in
+                guard let self = self,
+                      let pending = self.pendingPreviewDirection else { return }
+
+                self.currentPreviewDirection = pending
+                self.pendingPreviewDirection = nil
+                FeedbackHUD.shared.showSnapPreview(direction: pending)
+            }
+        }
     }
 
     private func hidePreview() {
+        previewDebounceTimer?.invalidate()
+        previewDebounceTimer = nil
+        pendingPreviewDirection = nil
         currentPreviewDirection = nil
         FeedbackHUD.shared.hideSnapPreview()
     }
 
     // MARK: - Action Execution
 
-    private func executeAction(_ action: WindowAction, timestamp: Double, ruleId: UUID? = nil) {
+    private func executeAction(_ action: WindowAction, timestamp: Double, ruleId: UUID? = nil, gestureName: String? = nil) {
         guard action != .none else { return }
 
         // Hide preview
         hidePreview()
+
+        // Learning mode: show feedback but don't execute
+        if isLearningMode {
+            let gesture = gestureName ?? "手势"
+            let actionName = action.displayName
+            learningModeCallback?(gesture, actionName)
+            FeedbackHUD.shared.flashAction(text: "✓ \(gesture) → \(actionName)")
+            lastActionTime = timestamp
+            resetState()
+            return
+        }
 
         // Show action feedback
         FeedbackHUD.shared.flashAction(text: action.shortName)
@@ -540,12 +652,25 @@ class GestureEngine {
         let capturedTapCount = tapCount
         let capturedFingerCount = fingerCount
 
+        // Show waiting indicator if there might be more taps coming
+        // Only show if double/triple tap actions are configured
+        let hasDoubleTapAction = getTapAction(fingerCount: fingerCount, tapType: .doubleTap) != .none
+        let hasTripleTapAction = getTapAction(fingerCount: fingerCount, tapType: .tripleTap) != .none
+
+        if (capturedTapCount == 1 && hasDoubleTapAction) || (capturedTapCount == 2 && hasTripleTapAction) {
+            let waitingText = capturedTapCount == 1 ? "等待更多点击..." : "等待第三次点击..."
+            FeedbackHUD.shared.showWaitingIndicator(text: waitingText)
+        }
+
         // Timer must be scheduled on main thread to work reliably
         DispatchQueue.main.async { [weak self] in
             guard let self = self else { return }
 
             self.tapTimer = Timer.scheduledTimer(withTimeInterval: self.tapSequenceTimeout, repeats: false) { [weak self] _ in
                 guard let self = self else { return }
+
+                // Hide waiting indicator
+                FeedbackHUD.shared.hideWaitingIndicator()
 
                 #if DEBUG
                 print("[GestureEngine] Tap timer fired, executing tap count: \(capturedTapCount)")
@@ -577,11 +702,14 @@ class GestureEngine {
         // Check cooldown
         guard timestamp - lastActionTime >= gestureCooldown else { return }
 
+        // Build gesture name for learning mode
+        let gestureName = "\(lastTapFingerCount)指\(tapType.displayName)"
+
         // Show feedback
         FeedbackHUD.shared.flashAction(text: "\(lastTapFingerCount)F \(tapType.shortName)")
 
         // Execute action
-        executeAction(action, timestamp: timestamp)
+        executeAction(action, timestamp: timestamp, gestureName: gestureName)
     }
 
     // MARK: - Utility

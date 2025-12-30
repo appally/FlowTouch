@@ -36,7 +36,9 @@ enum RuleScope: Codable, Equatable, Hashable {
 // MARK: - Gesture Trigger (手势触发器)
 
 struct GestureTrigger: Codable, Equatable, Hashable {
-    enum TriggerType: String, Codable, CaseIterable {
+    enum TriggerType: String, Codable, CaseIterable, Identifiable {
+        var id: String { rawValue }
+
         case swipe = "swipe"
         case tap = "tap"
         case pinch = "pinch"
@@ -427,5 +429,29 @@ struct RunningApp: Identifiable, Hashable {
         }
 
         return apps.sorted { $0.name < $1.name }
+    }
+
+    static func getAllApps() -> [RunningApp] {
+        let runningApps = getRunningApps()
+        let installedApps = getInstalledApps()
+        
+        var seen = Set<String>()
+        var combined: [RunningApp] = []
+        
+        for app in runningApps {
+            if !seen.contains(app.id) {
+                seen.insert(app.id)
+                combined.append(app)
+            }
+        }
+        
+        for app in installedApps {
+            if !seen.contains(app.id) {
+                seen.insert(app.id)
+                combined.append(app)
+            }
+        }
+        
+        return combined.sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
     }
 }

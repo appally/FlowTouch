@@ -55,6 +55,147 @@ class MultitouchManager: ObservableObject {
     @Published var hasInputMonitoring: Bool = false
     @Published var hasAccessibility: Bool = false
 
+    // System gesture conflicts
+    @Published var systemGestureConflicts: [SystemGestureConflict] = []
+
+    // MARK: - System Gesture Conflict Detection
+
+    struct SystemGestureConflict: Identifiable {
+        let id = UUID()
+        let fingerCount: Int
+        let systemGesture: String
+        let flowTouchGesture: String
+        let suggestion: String
+    }
+
+    /// Check for conflicts between FlowTouch gestures and system trackpad gestures
+    func checkSystemGestureConflicts() {
+        var conflicts: [SystemGestureConflict] = []
+
+        // Read system trackpad preferences
+        let defaults = UserDefaults.standard
+
+        // 3-finger swipe between pages (Safari, Preview, etc.)
+        let threeFingerSwipe = defaults.bool(forKey: "com.apple.trackpad.threeFingerHorizSwipeGesture")
+        // Alternative key used in some macOS versions
+        let threeFingerDrag = CFPreferencesCopyValue(
+            "com.apple.trackpad.threeFingerDrag" as CFString,
+            "com.apple.AppleMultitouchTrackpad" as CFString,
+            kCFPreferencesCurrentUser,
+            kCFPreferencesAnyHost
+        ) as? Bool ?? false
+
+        // 4-finger gestures
+        let missionControl = CFPreferencesCopyValue(
+            "TrackpadFourFingerVertSwipeGesture" as CFString,
+            "com.apple.AppleMultitouchTrackpad" as CFString,
+            kCFPreferencesCurrentUser,
+            kCFPreferencesAnyHost
+        ) as? Int ?? 2  // Default is usually enabled
+
+        let appExpose = CFPreferencesCopyValue(
+            "TrackpadFourFingerHorizSwipeGesture" as CFString,
+            "com.apple.AppleMultitouchTrackpad" as CFString,
+            kCFPreferencesCurrentUser,
+            kCFPreferencesAnyHost
+        ) as? Int ?? 2
+
+        let launchpad = CFPreferencesCopyValue(
+            "TrackpadFourFingerPinchGesture" as CFString,
+            "com.apple.AppleMultitouchTrackpad" as CFString,
+            kCFPreferencesCurrentUser,
+            kCFPreferencesAnyHost
+        ) as? Bool ?? true
+
+        // Check FlowTouch rules for conflicts
+        let rules = RuleManager.shared.rules.filter { $0.isEnabled }
+
+        // Check 3-finger conflicts
+        if threeFingerSwipe || threeFingerDrag {
+            let threeFingerRules = rules.filter {
+                if case .swipe(let fingers, _) = $0.trigger, fingers == 3 {
+                    return true
+                }
+                return false
+            }
+            if !threeFingerRules.isEmpty {
+                conflicts.append(SystemGestureConflict(
+                    fingerCount: 3,
+                    systemGesture: threeFingerDrag ? "三指拖移" : "三指滑动切换页面",
+                    flowTouchGesture: "三指滑动手势",
+                    suggestion: "建议在系统偏好设置中关闭三指手势，或使用四指手势"
+                ))
+            }
+        }
+
+        // Check 4-finger vertical conflicts (Mission Control)
+        if missionControl > 0 {
+            let fourFingerVerticalRules = rules.filter {
+                if case .swipe(let fingers, let dir) = $0.trigger,
+                   fingers == 4 && (dir == .up || dir == .down) {
+                    return true
+                }
+                return false
+            }
+            if !fourFingerVerticalRules.isEmpty {
+                conflicts.append(SystemGestureConflict(
+                    fingerCount: 4,
+                    systemGesture: "四指上滑调度中心 / 下滑应用窗口",
+                    flowTouchGesture: "四指上下滑动手势",
+                    suggestion: "建议在系统偏好设置中关闭四指垂直滑动手势"
+                ))
+            }
+        }
+
+        // Check 4-finger horizontal conflicts (Space switching)
+        if appExpose > 0 {
+            let fourFingerHorizontalRules = rules.filter {
+                if case .swipe(let fingers, let dir) = $0.trigger,
+                   fingers == 4 && (dir == .left || dir == .right) {
+                    return true
+                }
+                return false
+            }
+            if !fourFingerHorizontalRules.isEmpty {
+                conflicts.append(SystemGestureConflict(
+                    fingerCount: 4,
+                    systemGesture: "四指左右滑动切换桌面空间",
+                    flowTouchGesture: "四指左右滑动手势",
+                    suggestion: "建议在系统偏好设置中关闭四指水平滑动手势"
+                ))
+            }
+        }
+
+        // Check pinch conflicts (Launchpad)
+        if launchpad {
+            let pinchRules = rules.filter {
+                if case .pinch = $0.trigger {
+                    return true
+                }
+                return false
+            }
+            if !pinchRules.isEmpty {
+                conflicts.append(SystemGestureConflict(
+                    fingerCount: 2,
+                    systemGesture: "捏合显示 Launchpad",
+                    flowTouchGesture: "捏合手势",
+                    suggestion: "建议在系统偏好设置中关闭 Launchpad 手势"
+                ))
+            }
+        }
+
+        DispatchQueue.main.async {
+            self.systemGestureConflicts = conflicts
+        }
+    }
+
+    /// Open System Preferences to Trackpad settings
+    func openTrackpadSettings() {
+        if let url = URL(string: "x-apple.systempreferences:com.apple.Trackpad-Settings.extension") {
+            NSWorkspace.shared.open(url)
+        }
+    }
+
     // MARK: - Logging
 
     func log(_ msg: String, level: LogLevel = .info) {
@@ -137,6 +278,10 @@ class MultitouchManager: ObservableObject {
         let result = AXIsProcessTrustedWithOptions(options as CFDictionary)
         hasAccessibility = result
         log("Accessibility permission after request: \(result ? "Granted" : "Denied")")
+    }
+
+    func requestInputMonitoringPermission() {
+        requestInputMonitoring()
     }
 
     func requestInputMonitoring() {

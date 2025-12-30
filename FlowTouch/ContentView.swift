@@ -49,7 +49,7 @@ struct ContentView: View {
                 InitializingView()
             }
         }
-        .frame(minWidth: 440, minHeight: 580)
+        .frame(minWidth: 800, minHeight: 600)
     }
 }
 
@@ -184,49 +184,6 @@ struct WelcomeSetupView: View {
 
 // MARK: - Main Header
 
-struct MainHeader: View {
-    @ObservedObject var manager = MultitouchManager.shared
-    @Binding var showSettings: Bool
-
-    var body: some View {
-        HStack(spacing: 12) {
-            // Status
-            HStack(spacing: 8) {
-                Circle()
-                    .fill(manager.status == .active ? Color.green : Color.orange)
-                    .frame(width: 8, height: 8)
-                    .shadow(color: manager.status == .active ? Color.green.opacity(0.5) : .clear, radius: 4)
-
-                Text("FlowTouch")
-                    .font(.system(size: 15, weight: .semibold))
-
-                if manager.status == .active {
-                    Text("Active")
-                        .font(.system(size: 10, weight: .medium))
-                        .foregroundColor(.green)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                        .background(Color.green.opacity(0.12))
-                        .cornerRadius(4)
-                }
-            }
-
-            Spacer()
-
-            Button(action: { showSettings = true }) {
-                Image(systemName: "gearshape.fill")
-                    .font(.system(size: 12))
-                    .foregroundColor(.secondary)
-                    .frame(width: 28, height: 28)
-                    .background(Color.gray.opacity(0.1))
-                    .cornerRadius(6)
-            }
-            .buttonStyle(.plain)
-        }
-        .padding(.horizontal, DesignSystem.spacing)
-        .padding(.vertical, 10)
-    }
-}
 
 // MARK: - Gesture Type Tabs
 
@@ -1456,14 +1413,22 @@ struct MainFooter: View {
 struct SettingsView: View {
     @Environment(\.dismiss) var dismiss
     @ObservedObject var configManager = ConfigurationManager.shared
+    @ObservedObject var ruleManager = RuleManager.shared
+    @ObservedObject var multitouchManager = MultitouchManager.shared
+
+    @State private var showingExportSuccess = false
+    @State private var showingImportPicker = false
+    @State private var showingResetConfirmation = false
+    @State private var showingLearningMode = false
+    @State private var importError: String?
 
     var body: some View {
         VStack(spacing: 0) {
             HStack {
-                Text("Settings")
+                Text("设置")
                     .font(.headline)
                 Spacer()
-                Button("Done") { dismiss() }
+                Button("完成") { dismiss() }
                     .buttonStyle(.borderedProminent)
             }
             .padding()
@@ -1471,17 +1436,34 @@ struct SettingsView: View {
             Divider()
 
             Form {
-                Section("Startup") {
-                    Toggle("Launch at Login", isOn: Binding(
+                Section("启动") {
+                    Toggle("登录时启动", isOn: Binding(
                         get: { LaunchAtLoginManager.shared.isEnabled },
                         set: { LaunchAtLoginManager.shared.isEnabled = $0 }
                     ))
                 }
 
-                Section("Sensitivity") {
+                Section("手势学习") {
+                    Button(action: { showingLearningMode = true }) {
+                        HStack {
+                            Image(systemName: "hand.draw")
+                                .foregroundColor(.blue)
+                            Text("试试手势")
+                            Spacer()
+                            Text("学习模式")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                            Image(systemName: "chevron.right")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                }
+
+                Section("灵敏度") {
                     VStack(alignment: .leading, spacing: 8) {
                         HStack {
-                            Text("Swipe Threshold")
+                            Text("滑动阈值")
                             Spacer()
                             Text(String(format: "%.2f", configManager.config.swipeThreshold))
                                 .foregroundColor(.secondary)
@@ -1490,37 +1472,329 @@ struct SettingsView: View {
                     }
                 }
 
-                Section("Permissions") {
+                Section("权限状态") {
                     HStack {
-                        Text("Accessibility")
+                        Text("输入监控")
                         Spacer()
-                        if MultitouchManager.shared.hasAccessibility {
-                            Image(systemName: "checkmark.circle.fill")
-                                .foregroundColor(.green)
+                        if multitouchManager.hasInputMonitoring {
+                            HStack(spacing: 4) {
+                                Image(systemName: "checkmark.circle.fill")
+                                    .foregroundColor(.green)
+                                Text("已授权")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
                         } else {
-                            Button("Grant") {
-                                MultitouchManager.shared.requestAccessibilityPermission()
+                            Button("授权") {
+                                multitouchManager.requestInputMonitoringPermission()
+                            }
+                            .buttonStyle(.bordered)
+                        }
+                    }
+
+                    HStack {
+                        Text("辅助功能")
+                        Spacer()
+                        if multitouchManager.hasAccessibility {
+                            HStack(spacing: 4) {
+                                Image(systemName: "checkmark.circle.fill")
+                                    .foregroundColor(.green)
+                                Text("已授权")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                        } else {
+                            Button("授权") {
+                                multitouchManager.requestAccessibilityPermission()
                             }
                             .buttonStyle(.bordered)
                         }
                     }
                 }
 
-                Section("Data") {
-                    Button("Reset to Defaults") {
-                        configManager.resetToDefault()
+                // System gesture conflicts warning
+                if !multitouchManager.systemGestureConflicts.isEmpty {
+                    Section {
+                        ForEach(multitouchManager.systemGestureConflicts) { conflict in
+                            VStack(alignment: .leading, spacing: 6) {
+                                HStack(spacing: 6) {
+                                    Image(systemName: "exclamationmark.triangle.fill")
+                                        .foregroundColor(.orange)
+                                        .font(.system(size: 14))
+                                    Text("手势冲突")
+                                        .font(.subheadline)
+                                        .fontWeight(.medium)
+                                }
+
+                                Text("系统「\(conflict.systemGesture)」与 FlowTouch「\(conflict.flowTouchGesture)」可能冲突")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+
+                                Text(conflict.suggestion)
+                                    .font(.caption)
+                                    .foregroundColor(.orange)
+                            }
+                            .padding(.vertical, 4)
+                        }
+
+                        Button(action: {
+                            multitouchManager.openTrackpadSettings()
+                        }) {
+                            HStack {
+                                Image(systemName: "gear")
+                                Text("打开触控板设置")
+                            }
+                        }
+                    } header: {
+                        HStack {
+                            Image(systemName: "exclamationmark.triangle.fill")
+                                .foregroundColor(.orange)
+                            Text("系统手势冲突")
+                        }
+                    }
+                }
+
+                Section("规则管理") {
+                    HStack {
+                        Text("当前规则数")
+                        Spacer()
+                        Text("\(ruleManager.rules.count) 条")
+                            .foregroundColor(.secondary)
+                    }
+
+                    Button(action: exportRules) {
+                        HStack {
+                            Image(systemName: "square.and.arrow.up")
+                            Text("导出规则")
+                        }
+                    }
+
+                    Button(action: { showingImportPicker = true }) {
+                        HStack {
+                            Image(systemName: "square.and.arrow.down")
+                            Text("导入规则")
+                        }
+                    }
+                }
+
+                Section("数据") {
+                    Button("重置规则为默认", role: .destructive) {
+                        showingResetConfirmation = true
                     }
                 }
             }
             .formStyle(.grouped)
         }
-        .frame(width: 400, height: 380)
+        .frame(width: 400, height: 480)
+        .alert("导出成功", isPresented: $showingExportSuccess) {
+            Button("确定", role: .cancel) { }
+        } message: {
+            Text("规则已导出到桌面")
+        }
+        .alert("导入失败", isPresented: .init(
+            get: { importError != nil },
+            set: { if !$0 { importError = nil } }
+        )) {
+            Button("确定", role: .cancel) { }
+        } message: {
+            Text(importError ?? "")
+        }
+        .confirmationDialog("确定要重置所有规则吗？", isPresented: $showingResetConfirmation) {
+            Button("重置", role: .destructive) {
+                ruleManager.clearAllRules()
+            }
+            Button("取消", role: .cancel) { }
+        } message: {
+            Text("这将删除所有自定义规则。")
+        }
+        .fileImporter(
+            isPresented: $showingImportPicker,
+            allowedContentTypes: [.json],
+            allowsMultipleSelection: false
+        ) { result in
+            switch result {
+            case .success(let urls):
+                guard let url = urls.first else { return }
+                if url.startAccessingSecurityScopedResource() {
+                    defer { url.stopAccessingSecurityScopedResource() }
+                    do {
+                        let data = try Data(contentsOf: url)
+                        if ruleManager.importRules(from: data, replace: false) {
+                            // Success
+                        } else {
+                            importError = "无效的规则文件格式"
+                        }
+                    } catch {
+                        importError = "读取文件失败: \(error.localizedDescription)"
+                    }
+                }
+            case .failure(let error):
+                importError = "选择文件失败: \(error.localizedDescription)"
+            }
+        }
+        .sheet(isPresented: $showingLearningMode) {
+            GestureLearningView()
+        }
+        .onAppear {
+            // Check for system gesture conflicts when settings open
+            multitouchManager.checkSystemGestureConflicts()
+        }
+    }
+
+    private func exportRules() {
+        guard let data = ruleManager.exportRules() else { return }
+
+        let dateFormatter = DateFormatter()
+        dateFormatter.dateFormat = "yyyy-MM-dd_HHmmss"
+        let dateString = dateFormatter.string(from: Date())
+        let filename = "FlowTouch_Rules_\(dateString).json"
+
+        let desktopURL = FileManager.default.urls(for: .desktopDirectory, in: .userDomainMask).first!
+        let fileURL = desktopURL.appendingPathComponent(filename)
+
+        do {
+            try data.write(to: fileURL)
+            showingExportSuccess = true
+        } catch {
+            importError = "导出失败: \(error.localizedDescription)"
+        }
+    }
+}
+
+// MARK: - Gesture Learning View
+
+struct GestureLearningView: View {
+    @Environment(\.dismiss) var dismiss
+    @State private var recognizedGestures: [(gesture: String, action: String, time: Date)] = []
+    @State private var isActive = false
+
+    var body: some View {
+        VStack(spacing: 0) {
+            // Header
+            HStack {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("手势学习模式")
+                        .font(.headline)
+                    Text("在触控板上尝试手势，查看识别结果")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+                Spacer()
+                Button("完成") {
+                    stopLearning()
+                    dismiss()
+                }
+                .buttonStyle(.borderedProminent)
+            }
+            .padding()
+
+            Divider()
+
+            // Status indicator
+            HStack(spacing: 12) {
+                Circle()
+                    .fill(isActive ? Color.green : Color.orange)
+                    .frame(width: 10, height: 10)
+                    .shadow(color: isActive ? .green.opacity(0.5) : .clear, radius: 4)
+
+                Text(isActive ? "学习模式已启用 - 手势不会执行动作" : "正在启动...")
+                    .font(.subheadline)
+                    .foregroundColor(isActive ? .primary : .secondary)
+
+                Spacer()
+
+                if !recognizedGestures.isEmpty {
+                    Button("清空记录") {
+                        recognizedGestures.removeAll()
+                    }
+                    .font(.caption)
+                    .buttonStyle(.bordered)
+                }
+            }
+            .padding(.horizontal)
+            .padding(.vertical, 12)
+            .background(Color.secondary.opacity(0.05))
+
+            // Gesture history
+            if recognizedGestures.isEmpty {
+                VStack(spacing: 16) {
+                    Spacer()
+                    Image(systemName: "hand.draw")
+                        .font(.system(size: 48))
+                        .foregroundColor(.secondary.opacity(0.5))
+                    Text("在触控板上尝试手势")
+                        .font(.title3)
+                        .foregroundColor(.secondary)
+                    Text("支持滑动、点击、捏合手势")
+                        .font(.caption)
+                        .foregroundColor(.secondary.opacity(0.7))
+                    Spacer()
+                }
+            } else {
+                List {
+                    ForEach(recognizedGestures.reversed().indices, id: \.self) { index in
+                        let item = recognizedGestures.reversed()[index]
+                        HStack(spacing: 12) {
+                            Image(systemName: "checkmark.circle.fill")
+                                .foregroundColor(.green)
+                                .font(.system(size: 20))
+
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(item.gesture)
+                                    .font(.system(.body, weight: .medium))
+                                Text("→ \(item.action)")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+
+                            Spacer()
+
+                            Text(formatTime(item.time))
+                                .font(.caption2)
+                                .foregroundColor(.secondary.opacity(0.6))
+                        }
+                        .padding(.vertical, 4)
+                    }
+                }
+                .listStyle(.plain)
+            }
+        }
+        .frame(width: 400, height: 450)
+        .onAppear {
+            startLearning()
+        }
+        .onDisappear {
+            stopLearning()
+        }
+    }
+
+    private func startLearning() {
+        GestureEngine.shared.enableLearningMode { gesture, action in
+            DispatchQueue.main.async {
+                recognizedGestures.append((gesture: gesture, action: action, time: Date()))
+            }
+        }
+        isActive = true
+    }
+
+    private func stopLearning() {
+        GestureEngine.shared.disableLearningMode()
+        isActive = false
+    }
+
+    private func formatTime(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "HH:mm:ss"
+        return formatter.string(from: date)
     }
 }
 
 // MARK: - Supporting Views
 
 struct NoDeviceView: View {
+    @ObservedObject var manager = MultitouchManager.shared
+    @State private var isRetrying = false
+
     var body: some View {
         VStack(spacing: 20) {
             Spacer()
@@ -1529,23 +1803,58 @@ struct NoDeviceView: View {
                 .foregroundColor(.orange)
 
             VStack(spacing: 8) {
-                Text("No Trackpad Found")
+                Text("未找到触控板")
                     .font(.title3)
                     .fontWeight(.semibold)
 
-                Text("Connect a Magic Trackpad or use a MacBook.")
+                Text("请连接 Magic Trackpad 或使用 MacBook 内置触控板")
                     .font(.subheadline)
                     .foregroundColor(.secondary)
+                    .multilineTextAlignment(.center)
             }
 
-            Button("Retry") {
-                MultitouchManager.shared.checkDevices()
+            VStack(spacing: 12) {
+                Button(action: retryConnection) {
+                    HStack(spacing: 8) {
+                        if isRetrying {
+                            ProgressView()
+                                .scaleEffect(0.8)
+                        }
+                        Text(isRetrying ? "正在检测..." : "重新检测")
+                    }
+                    .frame(minWidth: 120)
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(isRetrying)
+
+                // Permission check hint
+                if !manager.hasInputMonitoring {
+                    VStack(spacing: 4) {
+                        Text("可能是权限问题")
+                            .font(.caption)
+                            .foregroundColor(.orange)
+                        Button("检查输入监控权限") {
+                            manager.requestInputMonitoringPermission()
+                        }
+                        .font(.caption)
+                        .buttonStyle(.link)
+                    }
+                }
             }
-            .buttonStyle(.borderedProminent)
 
             Spacer()
         }
         .padding()
+    }
+
+    private func retryConnection() {
+        isRetrying = true
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+            MultitouchManager.shared.checkDevices()
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                isRetrying = false
+            }
+        }
     }
 }
 
@@ -1554,7 +1863,7 @@ struct InitializingView: View {
         VStack(spacing: 16) {
             Spacer()
             ProgressView()
-            Text("Starting...")
+            Text("正在启动...")
                 .font(.subheadline)
                 .foregroundColor(.secondary)
             Spacer()

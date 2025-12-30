@@ -82,101 +82,101 @@ enum WindowAction: String, Codable, CaseIterable, Identifiable {
     var displayName: String {
         switch self {
         // Layout - Half
-        case .snapLeft: return "Left Half"
-        case .snapRight: return "Right Half"
-        case .snapTop: return "Top Half"
-        case .snapBottom: return "Bottom Half"
+        case .snapLeft: return "左半屏"
+        case .snapRight: return "右半屏"
+        case .snapTop: return "上半屏"
+        case .snapBottom: return "下半屏"
         // Layout - Quarter
-        case .snapTopLeft: return "Top Left"
-        case .snapTopRight: return "Top Right"
-        case .snapBottomLeft: return "Bottom Left"
-        case .snapBottomRight: return "Bottom Right"
+        case .snapTopLeft: return "左上角"
+        case .snapTopRight: return "右上角"
+        case .snapBottomLeft: return "左下角"
+        case .snapBottomRight: return "右下角"
         // Window Control
-        case .maximize: return "Maximize"
-        case .center: return "Center"
-        case .restore: return "Restore"
-        case .minimize: return "Minimize"
-        case .close: return "Close"
-        case .fullscreen: return "Fullscreen"
-        case .maximizeHeight: return "Max Height"
-        case .maximizeWidth: return "Max Width"
-        case .minimizeAll: return "Minimize All"
-        case .restoreAllMinimized: return "Restore All"
+        case .maximize: return "最大化"
+        case .center: return "居中"
+        case .restore: return "还原"
+        case .minimize: return "最小化"
+        case .close: return "关闭"
+        case .fullscreen: return "全屏"
+        case .maximizeHeight: return "垂直最大化"
+        case .maximizeWidth: return "水平最大化"
+        case .minimizeAll: return "全部最小化"
+        case .restoreAllMinimized: return "恢复全部"
         // Multi-Monitor & Spaces
-        case .moveToNextScreen: return "Next Screen"
-        case .moveToPrevScreen: return "Prev Screen"
-        case .moveToNextSpace: return "Next Space"
-        case .moveToPrevSpace: return "Prev Space"
-        case .spaceLeft: return "Space Left"
-        case .spaceRight: return "Space Right"
+        case .moveToNextScreen: return "移至下个屏幕"
+        case .moveToPrevScreen: return "移至上个屏幕"
+        case .moveToNextSpace: return "移至下个空间"
+        case .moveToPrevSpace: return "移至上个空间"
+        case .spaceLeft: return "切换左空间"
+        case .spaceRight: return "切换右空间"
         // Desktop & System
-        case .missionControl: return "Mission Control"
-        case .showDesktop: return "Show Desktop"
-        case .appExpose: return "App Exposé"
-        case .launchpad: return "Launchpad"
-        case .spotlight: return "Spotlight"
-        case .lockScreen: return "Lock Screen"
-        case .startScreensaver: return "Screensaver"
+        case .missionControl: return "调度中心"
+        case .showDesktop: return "显示桌面"
+        case .appExpose: return "应用窗口"
+        case .launchpad: return "启动台"
+        case .spotlight: return "聚焦搜索"
+        case .lockScreen: return "锁定屏幕"
+        case .startScreensaver: return "屏幕保护"
         // Application
-        case .quitApp: return "Quit App"
-        case .hideApp: return "Hide App"
-        case .hideOthers: return "Hide Others"
-        case .switchApp: return "Switch App"
-        case .previousApp: return "Previous App"
+        case .quitApp: return "退出应用"
+        case .hideApp: return "隐藏应用"
+        case .hideOthers: return "隐藏其他"
+        case .switchApp: return "切换应用"
+        case .previousApp: return "上个应用"
         // Custom
-        case .customShortcut: return "Custom Shortcut"
+        case .customShortcut: return "自定义快捷键"
         // None
-        case .none: return "Not Set"
+        case .none: return "未设置"
         }
     }
 
     var shortName: String {
         switch self {
         // Layout
-        case .snapLeft: return "Left"
-        case .snapRight: return "Right"
-        case .snapTop: return "Top"
-        case .snapBottom: return "Bottom"
-        case .snapTopLeft: return "Top-L"
-        case .snapTopRight: return "Top-R"
-        case .snapBottomLeft: return "Bot-L"
-        case .snapBottomRight: return "Bot-R"
+        case .snapLeft: return "左"
+        case .snapRight: return "右"
+        case .snapTop: return "上"
+        case .snapBottom: return "下"
+        case .snapTopLeft: return "左上"
+        case .snapTopRight: return "右上"
+        case .snapBottomLeft: return "左下"
+        case .snapBottomRight: return "右下"
         // Window
-        case .maximize: return "Max"
-        case .center: return "Center"
-        case .restore: return "Restore"
-        case .minimize: return "Min"
-        case .close: return "Close"
-        case .fullscreen: return "Full"
-        case .maximizeHeight: return "↕Max"
-        case .maximizeWidth: return "↔Max"
-        case .minimizeAll: return "MinAll"
-        case .restoreAllMinimized: return "RestoreAll"
+        case .maximize: return "最大化"
+        case .center: return "居中"
+        case .restore: return "还原"
+        case .minimize: return "最小化"
+        case .close: return "关闭"
+        case .fullscreen: return "全屏"
+        case .maximizeHeight: return "↕最大"
+        case .maximizeWidth: return "↔最大"
+        case .minimizeAll: return "全最小"
+        case .restoreAllMinimized: return "恢复全部"
         // Multi-Monitor
-        case .moveToNextScreen: return "→Screen"
-        case .moveToPrevScreen: return "←Screen"
-        case .moveToNextSpace: return "→Space"
-        case .moveToPrevSpace: return "←Space"
-        case .spaceLeft: return "Space←"
-        case .spaceRight: return "Space→"
+        case .moveToNextScreen: return "→屏幕"
+        case .moveToPrevScreen: return "←屏幕"
+        case .moveToNextSpace: return "→空间"
+        case .moveToPrevSpace: return "←空间"
+        case .spaceLeft: return "空间←"
+        case .spaceRight: return "空间→"
         // Desktop
-        case .missionControl: return "Mission"
-        case .showDesktop: return "Desktop"
-        case .appExpose: return "Exposé"
-        case .launchpad: return "Launchpad"
-        case .spotlight: return "Spotlight"
-        case .lockScreen: return "Lock"
-        case .startScreensaver: return "Screensaver"
+        case .missionControl: return "调度"
+        case .showDesktop: return "桌面"
+        case .appExpose: return "窗口"
+        case .launchpad: return "启动台"
+        case .spotlight: return "搜索"
+        case .lockScreen: return "锁屏"
+        case .startScreensaver: return "屏保"
         // Application
-        case .quitApp: return "Quit"
-        case .hideApp: return "Hide"
-        case .hideOthers: return "HideOther"
-        case .switchApp: return "Switch"
-        case .previousApp: return "PrevApp"
+        case .quitApp: return "退出"
+        case .hideApp: return "隐藏"
+        case .hideOthers: return "隐藏其他"
+        case .switchApp: return "切换"
+        case .previousApp: return "上个"
         // Custom
-        case .customShortcut: return "Shortcut"
+        case .customShortcut: return "快捷键"
         // None
-        case .none: return "Add"
+        case .none: return "添加"
         }
     }
 
@@ -283,13 +283,13 @@ enum WindowAction: String, Codable, CaseIterable, Identifiable {
     }
 
     enum ActionCategory: String, CaseIterable {
-        case layout = "Window Layout"
-        case window = "Window Control"
-        case multiMonitor = "Screens & Spaces"
-        case desktop = "Desktop & System"
-        case apps = "Applications"
-        case custom = "Custom"
-        case other = "Other"
+        case layout = "窗口布局"
+        case window = "窗口控制"
+        case multiMonitor = "屏幕与空间"
+        case desktop = "桌面与系统"
+        case apps = "应用程序"
+        case custom = "自定义"
+        case other = "其他"
 
         var icon: String {
             switch self {
@@ -338,9 +338,9 @@ enum WindowAction: String, Codable, CaseIterable, Identifiable {
 // MARK: - Gesture Type
 
 enum GestureType: String, CaseIterable, Identifiable {
-    case swipe = "Swipe"
-    case tap = "Tap"
-    case pinch = "Pinch"
+    case swipe = "滑动"
+    case tap = "点击"
+    case pinch = "捏合"
 
     var id: String { rawValue }
 
@@ -354,9 +354,9 @@ enum GestureType: String, CaseIterable, Identifiable {
 
     var description: String {
         switch self {
-        case .swipe: return "Slide fingers in a direction"
-        case .tap: return "Quick finger taps"
-        case .pinch: return "Pinch in or out"
+        case .swipe: return "在触控板上滑动手指"
+        case .tap: return "快速点击手指"
+        case .pinch: return "捏合或张开手指"
         }
     }
 }
@@ -372,17 +372,17 @@ enum TapType: String, Codable, CaseIterable, Identifiable {
 
     var displayName: String {
         switch self {
-        case .singleTap: return "Single Tap"
-        case .doubleTap: return "Double Tap"
-        case .tripleTap: return "Triple Tap"
+        case .singleTap: return "单击"
+        case .doubleTap: return "双击"
+        case .tripleTap: return "三击"
         }
     }
 
     var shortName: String {
         switch self {
-        case .singleTap: return "1x Tap"
-        case .doubleTap: return "2x Tap"
-        case .tripleTap: return "3x Tap"
+        case .singleTap: return "1次点击"
+        case .doubleTap: return "2次点击"
+        case .tripleTap: return "3次点击"
         }
     }
 
@@ -419,14 +419,14 @@ enum SwipeDirection: String, Codable, CaseIterable, Identifiable {
 
     var displayName: String {
         switch self {
-        case .left: return "Left"
-        case .right: return "Right"
-        case .up: return "Up"
-        case .down: return "Down"
-        case .topLeft: return "Top Left"
-        case .topRight: return "Top Right"
-        case .bottomLeft: return "Bottom Left"
-        case .bottomRight: return "Bottom Right"
+        case .left: return "左"
+        case .right: return "右"
+        case .up: return "上"
+        case .down: return "下"
+        case .topLeft: return "左上"
+        case .topRight: return "右上"
+        case .bottomLeft: return "左下"
+        case .bottomRight: return "右下"
         }
     }
 
@@ -476,8 +476,8 @@ enum PinchDirection: String, Codable, CaseIterable, Identifiable {
 
     var displayName: String {
         switch self {
-        case .pinchIn: return "Pinch In"
-        case .pinchOut: return "Pinch Out"
+        case .pinchIn: return "捏合"
+        case .pinchOut: return "张开"
         }
     }
 
@@ -625,8 +625,8 @@ struct GestureConfiguration: Codable, Equatable {
 
     // Sensitivity settings
     var swipeThreshold: Double = 0.12
-    var pinchInThreshold: Double = 0.60
-    var pinchOutThreshold: Double = 1.50
+    var pinchInThreshold: Double = 0.70   // Symmetric: requires 30% reduction (was 0.60 = 40%)
+    var pinchOutThreshold: Double = 1.40  // Symmetric: requires 40% expansion (was 1.50 = 50%)
     var tapTimeout: Double = 0.3
 
     // Get swipe mapping for finger count

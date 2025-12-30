@@ -42,6 +42,7 @@ class FeedbackHUD {
 
     // State
     private var isPreviewVisible = false
+    private var currentScreen: NSScreen?  // Track which screen we're on
 
     // MARK: - Setup
 
@@ -51,12 +52,71 @@ class FeedbackHUD {
         }
     }
 
+    /// Get the target screen for displaying HUD (focused window's screen, or mouse screen as fallback)
+    private func getTargetScreen() -> NSScreen? {
+        // Try to get focused window's screen first
+        if let focusedApp = NSWorkspace.shared.frontmostApplication,
+           let windows = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]] {
+            let appPID = focusedApp.processIdentifier
+            for windowInfo in windows {
+                if let pid = windowInfo[kCGWindowOwnerPID as String] as? Int32,
+                   pid == appPID,
+                   let bounds = windowInfo[kCGWindowBounds as String] as? [String: CGFloat],
+                   let windowX = bounds["X"],
+                   let windowY = bounds["Y"] {
+                    // Find which screen contains this window
+                    let windowPoint = NSPoint(x: windowX + 50, y: windowY + 50) // Offset a bit into the window
+                    for screen in NSScreen.screens {
+                        if screen.frame.contains(windowPoint) {
+                            return screen
+                        }
+                    }
+                }
+            }
+        }
+
+        // Fallback: use screen containing mouse pointer
+        let mouseLocation = NSEvent.mouseLocation
+        for screen in NSScreen.screens {
+            if screen.frame.contains(mouseLocation) {
+                return screen
+            }
+        }
+
+        // Last fallback: main screen
+        return NSScreen.main
+    }
+
+    /// Update HUD to target screen if changed
+    private func updateScreenIfNeeded() {
+        guard let targetScreen = getTargetScreen() else { return }
+
+        // Check if screen changed
+        if currentScreen?.frame != targetScreen.frame {
+            currentScreen = targetScreen
+            screenFrame = targetScreen.frame
+            visibleFrame = targetScreen.visibleFrame
+
+            // Update window position to new screen
+            window?.setFrame(screenFrame, display: true)
+
+            // Update container layer size
+            containerLayer?.frame = CGRect(origin: .zero, size: screenFrame.size)
+            window?.contentView?.frame = CGRect(origin: .zero, size: screenFrame.size)
+
+            #if DEBUG
+            print("[FeedbackHUD] Screen changed to: \(screenFrame)")
+            #endif
+        }
+    }
+
     private func setupOnMainThread() {
         guard let screen = NSScreen.main else {
             print("[FeedbackHUD] ERROR: No main screen found")
             return
         }
 
+        currentScreen = screen
         screenFrame = screen.frame
         visibleFrame = screen.visibleFrame
 
@@ -147,6 +207,9 @@ class FeedbackHUD {
     }
 
     private func showSnapPreviewOnMain(direction: SnapDirection) {
+        // Update screen in case user moved focus to different monitor
+        updateScreenIfNeeded()
+
         guard let preview = previewLayer else { return }
 
         // Calculate preview frame based on direction
@@ -216,6 +279,9 @@ class FeedbackHUD {
     }
 
     private func flashActionOnMain(text: String, icon: String? = nil) {
+        // Update screen in case user moved focus to different monitor
+        updateScreenIfNeeded()
+
         guard let actionLayer = actionLayer, let textLayer = actionTextLayer else { return }
 
         // Calculate size based on text
@@ -307,6 +373,83 @@ class FeedbackHUD {
                 self?.clearOnMain()
             }
         }
+    }
+
+    /// Show a subtle waiting indicator (for tap sequence waiting)
+    func showWaitingIndicator(text: String) {
+        if Thread.isMainThread {
+            showWaitingOnMain(text: text)
+        } else {
+            DispatchQueue.main.async { [weak self] in
+                self?.showWaitingOnMain(text: text)
+            }
+        }
+    }
+
+    private func showWaitingOnMain(text: String) {
+        updateScreenIfNeeded()
+
+        guard let actionLayer = actionLayer, let textLayer = actionTextLayer else { return }
+
+        // Calculate size based on text
+        let font = NSFont.systemFont(ofSize: 14, weight: .regular)
+        let textWidth = (text as NSString).size(withAttributes: [.font: font]).width
+        let layerWidth = textWidth + HUDConfig.actionIndicatorPadding * 2
+        let layerHeight: CGFloat = 36
+
+        // Position at center of screen
+        let x = (screenFrame.width - layerWidth) / 2
+        let y = (screenFrame.height - layerHeight) / 2
+
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+
+        actionLayer.frame = CGRect(x: x, y: y, width: layerWidth, height: layerHeight)
+        actionLayer.backgroundColor = NSColor.black.withAlphaComponent(0.6).cgColor
+        actionLayer.shadowOpacity = 0.2
+
+        textLayer.frame = CGRect(x: 0, y: (layerHeight - 18) / 2, width: layerWidth, height: 18)
+        textLayer.font = font
+        textLayer.fontSize = 14
+        textLayer.string = text
+        textLayer.foregroundColor = NSColor.white.withAlphaComponent(0.9).cgColor
+
+        actionLayer.opacity = 1
+        CATransaction.commit()
+
+        // Gentle fade in
+        let fadeIn = CABasicAnimation(keyPath: "opacity")
+        fadeIn.fromValue = 0
+        fadeIn.toValue = 1
+        fadeIn.duration = 0.08
+        actionLayer.add(fadeIn, forKey: "fadeIn")
+    }
+
+    /// Hide the waiting indicator
+    func hideWaitingIndicator() {
+        if Thread.isMainThread {
+            hideWaitingOnMain()
+        } else {
+            DispatchQueue.main.async { [weak self] in
+                self?.hideWaitingOnMain()
+            }
+        }
+    }
+
+    private func hideWaitingOnMain() {
+        guard let actionLayer = actionLayer else { return }
+
+        let fadeOut = CABasicAnimation(keyPath: "opacity")
+        fadeOut.fromValue = actionLayer.opacity
+        fadeOut.toValue = 0
+        fadeOut.duration = 0.1
+        fadeOut.fillMode = .forwards
+        fadeOut.isRemovedOnCompletion = false
+        actionLayer.add(fadeOut, forKey: "fadeOut")
+
+        // Restore default styling
+        actionLayer.backgroundColor = HUDConfig.actionIndicatorBgColor.cgColor
+        actionTextLayer?.foregroundColor = HUDConfig.actionIndicatorTextColor.cgColor
     }
 
     private func clearOnMain() {

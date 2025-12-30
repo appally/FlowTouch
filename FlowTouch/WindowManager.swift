@@ -60,6 +60,9 @@ class WindowManager {
     // Store previous window frames for restore functionality
     private var previousFrames: [pid_t: [String: CGRect]] = [:]
 
+    // Track last operation for undo functionality
+    private var lastOperationWindow: (pid: pid_t, windowId: String, previousFrame: CGRect)?
+
     // MARK: - Permission Check
 
     /// Check if we have Accessibility permission
@@ -127,10 +130,103 @@ class WindowManager {
         }
     }
 
-    /// Move window to next/previous screen
+    /// Move window to next screen
+    @discardableResult
     func moveToNextScreen() -> Bool {
-        // TODO: Implement multi-monitor support
-        return false
+        if Thread.isMainThread {
+            return moveToNextScreenOnMain()
+        } else {
+            return DispatchQueue.main.sync { [weak self] in
+                self?.moveToNextScreenOnMain() ?? false
+            }
+        }
+    }
+
+    /// Move window to previous screen
+    @discardableResult
+    func moveToPrevScreen() -> Bool {
+        if Thread.isMainThread {
+            return moveToPrevScreenOnMain()
+        } else {
+            return DispatchQueue.main.sync { [weak self] in
+                self?.moveToPrevScreenOnMain() ?? false
+            }
+        }
+    }
+
+    @discardableResult
+    private func moveToNextScreenOnMain() -> Bool {
+        return moveToScreenOnMain(next: true)
+    }
+
+    @discardableResult
+    private func moveToPrevScreenOnMain() -> Bool {
+        return moveToScreenOnMain(next: false)
+    }
+
+    private func moveToScreenOnMain(next: Bool) -> Bool {
+        guard isAccessibilityTrusted else {
+            requestAccessibilityPermission()
+            return false
+        }
+
+        let screens = NSScreen.screens
+        guard screens.count > 1 else {
+            print("[WindowManager] Only one screen available")
+            return false
+        }
+
+        guard let axWindow = getFocusedWindow(),
+              let currentFrame = getWindowFrame(axWindow) else {
+            return false
+        }
+
+        // Find which screen the window is currently on
+        let windowCenter = CGPoint(
+            x: currentFrame.origin.x + currentFrame.width / 2,
+            y: currentFrame.origin.y + currentFrame.height / 2
+        )
+
+        // Convert to Cocoa coordinates to find the screen
+        let cocoaY = ScreenCoordinates.primaryScreenHeight - windowCenter.y
+        let cocoaCenter = CGPoint(x: windowCenter.x, y: cocoaY)
+
+        var currentScreenIndex = 0
+        for (index, screen) in screens.enumerated() {
+            if screen.frame.contains(cocoaCenter) {
+                currentScreenIndex = index
+                break
+            }
+        }
+
+        // Calculate target screen index
+        let targetScreenIndex: Int
+        if next {
+            targetScreenIndex = (currentScreenIndex + 1) % screens.count
+        } else {
+            targetScreenIndex = (currentScreenIndex - 1 + screens.count) % screens.count
+        }
+
+        let targetScreen = screens[targetScreenIndex]
+        let targetVisibleFrame = ScreenCoordinates.visibleFrameInAXCoordinates(for: targetScreen)
+
+        // Keep relative position and size if possible
+        let currentVisibleFrame = ScreenCoordinates.visibleFrameInAXCoordinates(for: screens[currentScreenIndex])
+
+        // Calculate relative position (0-1 range)
+        let relativeX = (currentFrame.origin.x - currentVisibleFrame.origin.x) / currentVisibleFrame.width
+        let relativeY = (currentFrame.origin.y - currentVisibleFrame.origin.y) / currentVisibleFrame.height
+        let relativeWidth = currentFrame.width / currentVisibleFrame.width
+        let relativeHeight = currentFrame.height / currentVisibleFrame.height
+
+        // Apply to target screen
+        let newX = targetVisibleFrame.origin.x + relativeX * targetVisibleFrame.width
+        let newY = targetVisibleFrame.origin.y + relativeY * targetVisibleFrame.height
+        let newWidth = min(relativeWidth * targetVisibleFrame.width, targetVisibleFrame.width)
+        let newHeight = min(relativeHeight * targetVisibleFrame.height, targetVisibleFrame.height)
+
+        let newFrame = CGRect(x: newX, y: newY, width: newWidth, height: newHeight)
+        return setWindowFrame(axWindow, frame: newFrame)
     }
 
     /// Maximize window height while keeping width and horizontal position
@@ -273,6 +369,9 @@ class WindowManager {
                     previousFrames[pid] = [:]
                 }
                 previousFrames[pid]?[windowId] = currentFrame
+
+                // Track for undo functionality
+                lastOperationWindow = (pid: pid, windowId: windowId, previousFrame: currentFrame)
             }
         }
 
