@@ -383,6 +383,9 @@ struct RuleRow: View {
         case .multiMonitor: return .orange
         case .desktop: return .green
         case .apps: return .pink
+        case .tabs: return .cyan
+        case .media: return .pink
+        case .screenshot: return .yellow
         case .custom: return .indigo
         case .other: return .gray
         }

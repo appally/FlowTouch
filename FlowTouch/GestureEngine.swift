@@ -546,8 +546,7 @@ class GestureEngine {
             WindowManager.shared.moveToNextScreen()
 
         case .moveToPrevScreen:
-            // TODO: Implement
-            break
+            WindowManager.shared.moveToPrevScreen()
 
         case .spaceLeft, .spaceRight, .moveToNextSpace, .moveToPrevSpace:
             SystemActionsManager.shared.execute(action)
@@ -559,6 +558,22 @@ class GestureEngine {
 
         // Application control - use SystemActionsManager
         case .quitApp, .hideApp, .hideOthers, .switchApp, .previousApp:
+            SystemActionsManager.shared.execute(action)
+
+        // Tab control - use SystemActionsManager
+        case .newTab, .closeTab, .nextTab, .prevTab:
+            SystemActionsManager.shared.execute(action)
+
+        // Media control - use SystemActionsManager
+        case .playPause, .nextTrack, .prevTrack, .volumeUp, .volumeDown, .volumeMute:
+            SystemActionsManager.shared.execute(action)
+
+        // Brightness control - use SystemActionsManager
+        case .brightnessUp, .brightnessDown:
+            SystemActionsManager.shared.execute(action)
+
+        // Screenshot - use SystemActionsManager
+        case .screenshot, .screenshotArea, .screenshotWindow:
             SystemActionsManager.shared.execute(action)
 
         // Custom shortcut - use SystemActionsManager with ruleId

@@ -32,6 +32,20 @@ struct ActionSelectionView: View {
         .switchApp, .previousApp
     ]
     
+    private let tabActions: [WindowAction] = [
+        .newTab, .closeTab, .nextTab, .prevTab
+    ]
+    
+    private let mediaActions: [WindowAction] = [
+        .playPause, .nextTrack, .prevTrack,
+        .volumeUp, .volumeDown, .volumeMute,
+        .brightnessUp, .brightnessDown
+    ]
+    
+    private let screenshotActions: [WindowAction] = [
+        .screenshot, .screenshotArea, .screenshotWindow
+    ]
+    
     var body: some View {
         VStack(spacing: 0) {
             // Unify with AddRuleSheet header style (V16)
@@ -113,6 +127,39 @@ struct ActionSelectionView: View {
                     }
                 } header: {
                     Text("应用程序")
+                }
+                
+                // Tab Control
+                Section {
+                    ForEach(tabActions) { action in
+                        ActionRow(action: action, isSelected: selection == action, color: .cyan) {
+                            selectWithFeedback(action)
+                        }
+                    }
+                } header: {
+                    Text("标签页")
+                }
+                
+                // Media Control
+                Section {
+                    ForEach(mediaActions) { action in
+                        ActionRow(action: action, isSelected: selection == action, color: .pink) {
+                            selectWithFeedback(action)
+                        }
+                    }
+                } header: {
+                    Text("媒体控制")
+                }
+                
+                // Screenshot
+                Section {
+                    ForEach(screenshotActions) { action in
+                        ActionRow(action: action, isSelected: selection == action, color: .yellow) {
+                            selectWithFeedback(action)
+                        }
+                    }
+                } header: {
+                    Text("截图")
                 }
                 
                 // Custom Shortcut

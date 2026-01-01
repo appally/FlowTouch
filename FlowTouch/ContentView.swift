@@ -469,6 +469,9 @@ struct SwipeCell: View {
         case .multiMonitor: return .orange
         case .desktop: return .green
         case .apps: return .red
+        case .tabs: return .cyan
+        case .media: return .pink
+        case .screenshot: return .yellow
         case .custom: return .indigo
         case .other: return .gray
         }
@@ -1116,6 +1119,9 @@ struct CollapsibleCategorySection: View {
         case .multiMonitor: return .orange
         case .desktop: return .green
         case .apps: return .red
+        case .tabs: return .cyan
+        case .media: return .pink
+        case .screenshot: return .yellow
         case .custom: return .indigo
         case .other: return .gray
         }
@@ -1288,6 +1294,9 @@ struct ActionCategorySection: View {
         case .multiMonitor: return .orange
         case .desktop: return .green
         case .apps: return .red
+        case .tabs: return .cyan
+        case .media: return .pink
+        case .screenshot: return .yellow
         case .custom: return .indigo
         case .other: return .gray
         }

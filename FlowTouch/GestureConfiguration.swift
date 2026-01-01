@@ -69,6 +69,37 @@ enum WindowAction: String, Codable, CaseIterable, Identifiable {
     case previousApp = "previous_app"
 
     // ============================================
+    // MARK: Tab Control
+    // ============================================
+    case newTab = "new_tab"
+    case closeTab = "close_tab"
+    case nextTab = "next_tab"
+    case prevTab = "prev_tab"
+
+    // ============================================
+    // MARK: Media Control
+    // ============================================
+    case playPause = "play_pause"
+    case nextTrack = "next_track"
+    case prevTrack = "prev_track"
+    case volumeUp = "volume_up"
+    case volumeDown = "volume_down"
+    case volumeMute = "volume_mute"
+
+    // ============================================
+    // MARK: Brightness Control
+    // ============================================
+    case brightnessUp = "brightness_up"
+    case brightnessDown = "brightness_down"
+
+    // ============================================
+    // MARK: Screenshot
+    // ============================================
+    case screenshot = "screenshot"
+    case screenshotArea = "screenshot_area"
+    case screenshotWindow = "screenshot_window"
+
+    // ============================================
     // MARK: Custom
     // ============================================
     case customShortcut = "custom_shortcut"
@@ -125,6 +156,25 @@ enum WindowAction: String, Codable, CaseIterable, Identifiable {
         case .hideOthers: return "隐藏其他"
         case .switchApp: return "切换应用"
         case .previousApp: return "上个应用"
+        // Tab Control
+        case .newTab: return "新建标签页"
+        case .closeTab: return "关闭标签页"
+        case .nextTab: return "下一个标签页"
+        case .prevTab: return "上一个标签页"
+        // Media Control
+        case .playPause: return "播放/暂停"
+        case .nextTrack: return "下一曲"
+        case .prevTrack: return "上一曲"
+        case .volumeUp: return "音量增加"
+        case .volumeDown: return "音量减少"
+        case .volumeMute: return "静音"
+        // Brightness Control
+        case .brightnessUp: return "亮度增加"
+        case .brightnessDown: return "亮度减少"
+        // Screenshot
+        case .screenshot: return "截取全屏"
+        case .screenshotArea: return "截取区域"
+        case .screenshotWindow: return "截取窗口"
         // Custom
         case .customShortcut: return "自定义快捷键"
         // None
@@ -176,6 +226,25 @@ enum WindowAction: String, Codable, CaseIterable, Identifiable {
         case .hideOthers: return "隐藏其他"
         case .switchApp: return "切换"
         case .previousApp: return "上个"
+        // Tab Control
+        case .newTab: return "新标签"
+        case .closeTab: return "关标签"
+        case .nextTab: return "下标签"
+        case .prevTab: return "上标签"
+        // Media Control
+        case .playPause: return "播放"
+        case .nextTrack: return "下一曲"
+        case .prevTrack: return "上一曲"
+        case .volumeUp: return "音量+"
+        case .volumeDown: return "音量-"
+        case .volumeMute: return "静音"
+        // Brightness Control
+        case .brightnessUp: return "亮度+"
+        case .brightnessDown: return "亮度-"
+        // Screenshot
+        case .screenshot: return "截全屏"
+        case .screenshotArea: return "截区域"
+        case .screenshotWindow: return "截窗口"
         // Custom
         case .customShortcut: return "快捷键"
         // None
@@ -228,6 +297,25 @@ enum WindowAction: String, Codable, CaseIterable, Identifiable {
         case .hideOthers: return "eye.trianglebadge.exclamationmark"
         case .switchApp: return "arrow.left.arrow.right"
         case .previousApp: return "arrow.uturn.left"
+        // Tab Control
+        case .newTab: return "plus.rectangle.on.rectangle"
+        case .closeTab: return "xmark.rectangle"
+        case .nextTab: return "arrow.right.square"
+        case .prevTab: return "arrow.left.square"
+        // Media Control
+        case .playPause: return "playpause.fill"
+        case .nextTrack: return "forward.fill"
+        case .prevTrack: return "backward.fill"
+        case .volumeUp: return "speaker.wave.3.fill"
+        case .volumeDown: return "speaker.wave.1.fill"
+        case .volumeMute: return "speaker.slash.fill"
+        // Brightness Control
+        case .brightnessUp: return "sun.max.fill"
+        case .brightnessDown: return "sun.min.fill"
+        // Screenshot
+        case .screenshot: return "camera.viewfinder"
+        case .screenshotArea: return "viewfinder"
+        case .screenshotWindow: return "macwindow.on.rectangle"
         // Custom
         case .customShortcut: return "command"
         // None
@@ -279,6 +367,13 @@ enum WindowAction: String, Codable, CaseIterable, Identifiable {
             return .desktop
         case .quitApp, .hideApp, .hideOthers, .switchApp, .previousApp:
             return .apps
+        case .newTab, .closeTab, .nextTab, .prevTab:
+            return .tabs
+        case .playPause, .nextTrack, .prevTrack, .volumeUp, .volumeDown, .volumeMute,
+             .brightnessUp, .brightnessDown:
+            return .media
+        case .screenshot, .screenshotArea, .screenshotWindow:
+            return .screenshot
         case .customShortcut:
             return .custom
         case .none:
@@ -292,6 +387,9 @@ enum WindowAction: String, Codable, CaseIterable, Identifiable {
         case multiMonitor = "屏幕与空间"
         case desktop = "桌面与系统"
         case apps = "应用程序"
+        case tabs = "标签页"
+        case media = "媒体控制"
+        case screenshot = "截图"
         case custom = "自定义"
         case other = "其他"
 
@@ -302,6 +400,9 @@ enum WindowAction: String, Codable, CaseIterable, Identifiable {
             case .multiMonitor: return "display.2"
             case .desktop: return "desktopcomputer"
             case .apps: return "app.badge"
+            case .tabs: return "rectangle.stack"
+            case .media: return "play.circle"
+            case .screenshot: return "camera"
             case .custom: return "keyboard"
             case .other: return "ellipsis.circle"
             }
@@ -314,6 +415,9 @@ enum WindowAction: String, Codable, CaseIterable, Identifiable {
             case .multiMonitor: return "orange"
             case .desktop: return "green"
             case .apps: return "red"
+            case .tabs: return "cyan"
+            case .media: return "pink"
+            case .screenshot: return "yellow"
             case .custom: return "indigo"
             case .other: return "gray"
             }
@@ -327,8 +431,11 @@ enum WindowAction: String, Codable, CaseIterable, Identifiable {
             case .multiMonitor: return 2
             case .desktop: return 3
             case .apps: return 4
-            case .custom: return 5
-            case .other: return 6
+            case .tabs: return 5
+            case .media: return 6
+            case .screenshot: return 7
+            case .custom: return 8
+            case .other: return 9
             }
         }
 

@@ -244,6 +244,63 @@ class SystemActionsManager {
         case .restoreAllMinimized:
             return restoreAllMinimizedWindows()
 
+        // ============================================
+        // Tab Control
+        // ============================================
+        case .newTab:
+            return simulateKeyPress(keyCode: 0x11, modifiers: CGEventFlags.maskCommand)  // Cmd+T
+
+        case .closeTab:
+            return simulateKeyPress(keyCode: 0x0D, modifiers: CGEventFlags.maskCommand)  // Cmd+W
+
+        case .nextTab:
+            return simulateKeyPress(keyCode: 0x30, modifiers: CGEventFlags.maskControl)  // Ctrl+Tab
+
+        case .prevTab:
+            return simulateKeyPress(keyCode: 0x30, modifiers: [CGEventFlags.maskControl, CGEventFlags.maskShift])  // Ctrl+Shift+Tab
+
+        // ============================================
+        // Media Control
+        // ============================================
+        case .playPause:
+            return simulateMediaKey(.playPause)
+
+        case .nextTrack:
+            return simulateMediaKey(.next)
+
+        case .prevTrack:
+            return simulateMediaKey(.previous)
+
+        case .volumeUp:
+            return simulateMediaKey(.volumeUp)
+
+        case .volumeDown:
+            return simulateMediaKey(.volumeDown)
+
+        case .volumeMute:
+            return simulateMediaKey(.mute)
+
+        // ============================================
+        // Brightness Control
+        // ============================================
+        case .brightnessUp:
+            return simulateMediaKey(.brightnessUp)
+
+        case .brightnessDown:
+            return simulateMediaKey(.brightnessDown)
+
+        // ============================================
+        // Screenshot
+        // ============================================
+        case .screenshot:
+            return simulateKeyPress(keyCode: 0x14, modifiers: [CGEventFlags.maskCommand, CGEventFlags.maskShift])  // Cmd+Shift+3
+
+        case .screenshotArea:
+            return simulateKeyPress(keyCode: 0x15, modifiers: [CGEventFlags.maskCommand, CGEventFlags.maskShift])  // Cmd+Shift+4
+
+        case .screenshotWindow:
+            return simulateKeyPress(keyCode: 0x17, modifiers: [CGEventFlags.maskCommand, CGEventFlags.maskShift])  // Cmd+Shift+5
+
         default:
             // Other actions (window layout, etc.) should be handled by WindowManager
             return false
@@ -310,6 +367,69 @@ class SystemActionsManager {
         keyUp.post(tap: .cghidEventTap)
 
         print("[SystemActions] Simulated function key: \(key)")
+        return true
+    }
+
+    // MARK: - Media Key Simulation
+
+    private enum MediaKey: Int {
+        case playPause = 16     // NX_KEYTYPE_PLAY
+        case next = 17          // NX_KEYTYPE_NEXT
+        case previous = 18      // NX_KEYTYPE_PREVIOUS
+        case mute = 7           // NX_KEYTYPE_MUTE
+        case volumeUp = 0       // NX_KEYTYPE_SOUND_UP
+        case volumeDown = 1     // NX_KEYTYPE_SOUND_DOWN
+        case brightnessUp = 2   // NX_KEYTYPE_BRIGHTNESS_UP
+        case brightnessDown = 3 // NX_KEYTYPE_BRIGHTNESS_DOWN
+    }
+
+    private func simulateMediaKey(_ key: MediaKey) -> Bool {
+        // Media keys use special HID system events
+        // We need to post them as system-defined events
+
+        let keyCode = Int32(key.rawValue)
+
+        // Create key down event
+        let keyDownEvent = NSEvent.otherEvent(
+            with: .systemDefined,
+            location: NSPoint.zero,
+            modifierFlags: NSEvent.ModifierFlags(rawValue: 0xa00),  // NX_KEYDOWN
+            timestamp: 0,
+            windowNumber: 0,
+            context: nil,
+            subtype: 8,  // NX_SUBTYPE_AUX_CONTROL_BUTTONS
+            data1: Int((keyCode << 16) | (0xa << 8)),  // key down
+            data2: -1
+        )
+
+        // Create key up event
+        let keyUpEvent = NSEvent.otherEvent(
+            with: .systemDefined,
+            location: NSPoint.zero,
+            modifierFlags: NSEvent.ModifierFlags(rawValue: 0xb00),  // NX_KEYUP
+            timestamp: 0,
+            windowNumber: 0,
+            context: nil,
+            subtype: 8,  // NX_SUBTYPE_AUX_CONTROL_BUTTONS
+            data1: Int((keyCode << 16) | (0xb << 8)),  // key up
+            data2: -1
+        )
+
+        guard let downEvent = keyDownEvent, let upEvent = keyUpEvent else {
+            print("[SystemActions] Failed to create media key event")
+            return false
+        }
+
+        // Post events to system
+        guard let downCGEvent = downEvent.cgEvent, let upCGEvent = upEvent.cgEvent else {
+            print("[SystemActions] Failed to get CGEvent from NSEvent")
+            return false
+        }
+
+        downCGEvent.post(tap: .cghidEventTap)
+        upCGEvent.post(tap: .cghidEventTap)
+
+        print("[SystemActions] Simulated media key: \(key)")
         return true
     }
 
