@@ -18,7 +18,6 @@ struct ActionSelectionView: View {
     
     private let multiMonitorActions: [WindowAction] = [
         .moveToNextScreen, .moveToPrevScreen,
-        .moveToNextSpace, .moveToPrevSpace,
         .spaceLeft, .spaceRight
     ]
     

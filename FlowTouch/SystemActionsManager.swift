@@ -156,7 +156,7 @@ class SystemActionsManager {
         // Desktop & System Actions
         // ============================================
         case .missionControl:
-            return simulateKeyPress(keyCode: 0x60, modifiers: CGEventFlags.maskControl)  // Ctrl+F3 or use specific key
+            return simulateKeyPress(keyCode: 0x7E, modifiers: CGEventFlags.maskControl)  // Ctrl+Up
 
         case .showDesktop:
             return simulateFunctionKey(.f11)
@@ -187,11 +187,15 @@ class SystemActionsManager {
 
         case .moveToNextSpace:
             // Move window to next space - this is complex and requires private APIs
+            #if DEBUG
             print("[SystemActions] moveToNextSpace not yet implemented")
+            #endif
             return false
 
         case .moveToPrevSpace:
+            #if DEBUG
             print("[SystemActions] moveToPrevSpace not yet implemented")
+            #endif
             return false
 
         case .moveToNextScreen:
@@ -224,7 +228,9 @@ class SystemActionsManager {
         case .customShortcut:
             guard let ruleId = ruleId,
                   let shortcut = CustomShortcutManager.shared.getShortcut(for: ruleId) else {
+                #if DEBUG
                 print("[SystemActions] No custom shortcut configured")
+                #endif
                 return false
             }
             return executeCustomShortcut(shortcut)
@@ -330,7 +336,9 @@ class SystemActionsManager {
         keyDown.post(tap: .cghidEventTap)
         keyUp.post(tap: .cghidEventTap)
 
+        #if DEBUG
         print("[SystemActions] Simulated key press: \(keyCode) with modifiers: \(modifiers.rawValue)")
+        #endif
         return true
     }
 
@@ -366,7 +374,9 @@ class SystemActionsManager {
         keyDown.post(tap: .cghidEventTap)
         keyUp.post(tap: .cghidEventTap)
 
+        #if DEBUG
         print("[SystemActions] Simulated function key: \(key)")
+        #endif
         return true
     }
 
@@ -429,7 +439,9 @@ class SystemActionsManager {
         downCGEvent.post(tap: .cghidEventTap)
         upCGEvent.post(tap: .cghidEventTap)
 
+        #if DEBUG
         print("[SystemActions] Simulated media key: \(key)")
+        #endif
         return true
     }
 
@@ -462,7 +474,9 @@ class SystemActionsManager {
 
         do {
             try task.run()
+            #if DEBUG
             print("[SystemActions] Lock screen executed")
+            #endif
             return true
         } catch {
             print("[SystemActions] Lock screen failed: \(error)")
@@ -472,7 +486,9 @@ class SystemActionsManager {
 
     private func startScreensaver() -> Bool {
         let result = NSWorkspace.shared.open(URL(fileURLWithPath: "/System/Library/CoreServices/ScreenSaverEngine.app"))
+        #if DEBUG
         print("[SystemActions] Start screensaver: \(result)")
+        #endif
         return result
     }
 
@@ -514,7 +530,9 @@ class SystemActionsManager {
             return false
         }
 
+        #if DEBUG
         print("[SystemActions] AppleScript executed successfully")
+        #endif
         return true
     }
 }

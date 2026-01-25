@@ -16,6 +16,13 @@ enum GestureState: Int {
 class GestureEngine {
     static let shared = GestureEngine()
 
+    private let processingQueue = DispatchQueue(label: "FlowTouch.GestureEngine", qos: .userInteractive)
+    private let queueKey = DispatchSpecificKey<Void>()
+
+    private init() {
+        processingQueue.setSpecific(key: queueKey, value: ())
+    }
+
     // Rule Manager (primary source)
     private var ruleManager: RuleManager {
         RuleManager.shared
@@ -51,7 +58,7 @@ class GestureEngine {
     // Preview state
     private var currentPreviewDirection: SnapDirection?
     private var pendingPreviewDirection: SnapDirection?
-    private var previewDebounceTimer: Timer?
+    private var previewDebounceTimer: DispatchSourceTimer?
     private let previewDebounceInterval: TimeInterval = 0.08  // 80ms debounce
 
     // Learning mode - shows gesture recognition without executing actions
@@ -65,7 +72,7 @@ class GestureEngine {
     private var touchDownTime: Double = 0
     private var totalMovement: Float = 0
     private var isTapCandidate: Bool = false
-    private var tapTimer: Timer?
+    private var tapTimer: DispatchSourceTimer?
     private var peakTouchingFingers: Int = 0  // Track max fingers during touch
     private var wasAllTouching: Bool = false   // Track if all fingers were touching
 
@@ -90,20 +97,26 @@ class GestureEngine {
     /// Enable learning mode - gestures will be recognized but not executed
     /// The callback receives (gestureName, actionName) for each recognized gesture
     func enableLearningMode(callback: @escaping (String, String) -> Void) {
-        isLearningMode = true
-        learningModeCallback = callback
-        #if DEBUG
-        print("[GestureEngine] Learning mode enabled")
-        #endif
+        asyncOnQueue { [weak self] in
+            guard let self = self else { return }
+            self.isLearningMode = true
+            self.learningModeCallback = callback
+            #if DEBUG
+            print("[GestureEngine] Learning mode enabled")
+            #endif
+        }
     }
 
     /// Disable learning mode - return to normal gesture execution
     func disableLearningMode() {
-        isLearningMode = false
-        learningModeCallback = nil
-        #if DEBUG
-        print("[GestureEngine] Learning mode disabled")
-        #endif
+        asyncOnQueue { [weak self] in
+            guard let self = self else { return }
+            self.isLearningMode = false
+            self.learningModeCallback = nil
+            #if DEBUG
+            print("[GestureEngine] Learning mode disabled")
+            #endif
+        }
     }
 
     // MARK: - Rule Matching
@@ -141,17 +154,18 @@ class GestureEngine {
     }
 
     /// Get action for a tap gesture (rule-based with fallback)
-    private func getTapAction(fingerCount: Int, tapType: TapType) -> WindowAction {
+    /// Returns (action, ruleId) tuple - ruleId is needed for customShortcut actions
+    private func getTapAction(fingerCount: Int, tapType: TapType) -> (action: WindowAction, ruleId: UUID?) {
         let trigger = GestureTrigger.tap(fingers: fingerCount, tapType: tapType)
 
         // Try rule-based lookup first
         if let rule = findRule(for: trigger), rule.isEnabled {
-            return rule.action
+            return (rule.action, rule.id)
         }
 
         // Fallback to legacy configuration
         let mapping = config.tapMapping(for: fingerCount)
-        return mapping.action(for: tapType)
+        return (mapping.action(for: tapType), nil)
     }
 
     /// Check if there are any enabled rules
@@ -181,6 +195,12 @@ class GestureEngine {
     // MARK: - Process Frame
 
     func processFrame(timestamp: Double, touches: [MTTouch]) {
+        asyncOnQueue { [weak self] in
+            self?.processFrameInternal(timestamp: timestamp, touches: touches)
+        }
+    }
+
+    private func processFrameInternal(timestamp: Double, touches: [MTTouch]) {
         // Handle empty frame (all fingers lifted)
         if touches.isEmpty {
             if state == .began || state == .changed {
@@ -467,29 +487,33 @@ class GestureEngine {
 
         // Set pending direction and start debounce timer
         pendingPreviewDirection = direction
-        previewDebounceTimer?.invalidate()
+        previewDebounceTimer?.cancel()
+        previewDebounceTimer = nil
 
-        // Use main thread for timer
-        DispatchQueue.main.async { [weak self] in
-            guard let self = self else { return }
+        let timer = DispatchSource.makeTimerSource(queue: processingQueue)
+        timer.schedule(deadline: .now() + previewDebounceInterval)
+        timer.setEventHandler { [weak self] in
+            guard let self = self,
+                  let pending = self.pendingPreviewDirection else { return }
 
-            self.previewDebounceTimer = Timer.scheduledTimer(withTimeInterval: self.previewDebounceInterval, repeats: false) { [weak self] _ in
-                guard let self = self,
-                      let pending = self.pendingPreviewDirection else { return }
-
-                self.currentPreviewDirection = pending
-                self.pendingPreviewDirection = nil
+            self.currentPreviewDirection = pending
+            self.pendingPreviewDirection = nil
+            DispatchQueue.main.async {
                 FeedbackHUD.shared.showSnapPreview(direction: pending)
             }
         }
+        previewDebounceTimer = timer
+        timer.resume()
     }
 
     private func hidePreview() {
-        previewDebounceTimer?.invalidate()
+        previewDebounceTimer?.cancel()
         previewDebounceTimer = nil
         pendingPreviewDirection = nil
         currentPreviewDirection = nil
-        FeedbackHUD.shared.hideSnapPreview()
+        DispatchQueue.main.async {
+            FeedbackHUD.shared.hideSnapPreview()
+        }
     }
 
     // MARK: - Action Execution
@@ -612,18 +636,18 @@ class GestureEngine {
         tapTimer = nil
 
         // Get actions for all tap types to determine execution strategy
-        let singleTapAction = getTapAction(fingerCount: fingerCount, tapType: .singleTap)
-        let doubleTapAction = getTapAction(fingerCount: fingerCount, tapType: .doubleTap)
-        let tripleTapAction = getTapAction(fingerCount: fingerCount, tapType: .tripleTap)
+        let singleTapResult = getTapAction(fingerCount: fingerCount, tapType: .singleTap)
+        let doubleTapResult = getTapAction(fingerCount: fingerCount, tapType: .doubleTap)
+        let tripleTapResult = getTapAction(fingerCount: fingerCount, tapType: .tripleTap)
 
         #if DEBUG
-        print("[GestureEngine] Tap detected: \(fingerCount)F, count=\(tapCount), actions: single=\(singleTapAction), double=\(doubleTapAction), triple=\(tripleTapAction)")
+        print("[GestureEngine] Tap detected: \(fingerCount)F, count=\(tapCount), actions: single=\(singleTapResult.action), double=\(doubleTapResult.action), triple=\(tripleTapResult.action)")
         #endif
 
         switch tapCount {
         case 1:
             // Single tap: check if we need to wait for double/triple
-            if doubleTapAction == .none && tripleTapAction == .none {
+            if doubleTapResult.action == .none && tripleTapResult.action == .none {
                 // No multi-tap configured, execute immediately
                 executeTapAction(for: .singleTap, timestamp: timestamp)
                 tapCount = 0
@@ -634,7 +658,7 @@ class GestureEngine {
 
         case 2:
             // Double tap: check if we need to wait for triple
-            if tripleTapAction == .none {
+            if tripleTapResult.action == .none {
                 // No triple-tap configured, execute double-tap immediately
                 #if DEBUG
                 print("[GestureEngine] Executing double-tap immediately (no triple configured)")
@@ -664,7 +688,7 @@ class GestureEngine {
     }
 
     private func scheduleTapExecution(tapType: TapType, fingerCount: Int, timestamp: Double) {
-        tapTimer?.invalidate()
+        tapTimer?.cancel()
         tapTimer = nil
 
         let capturedTapCount = tapCount
@@ -672,50 +696,47 @@ class GestureEngine {
 
         // Show waiting indicator if there might be more taps coming
         // Only show if double/triple tap actions are configured
-        let hasDoubleTapAction = getTapAction(fingerCount: fingerCount, tapType: .doubleTap) != .none
-        let hasTripleTapAction = getTapAction(fingerCount: fingerCount, tapType: .tripleTap) != .none
+        let hasDoubleTapAction = getTapAction(fingerCount: fingerCount, tapType: .doubleTap).action != .none
+        let hasTripleTapAction = getTapAction(fingerCount: fingerCount, tapType: .tripleTap).action != .none
 
         if (capturedTapCount == 1 && hasDoubleTapAction) || (capturedTapCount == 2 && hasTripleTapAction) {
             let waitingText = capturedTapCount == 1 ? "等待更多点击..." : "等待第三次点击..."
             FeedbackHUD.shared.showWaitingIndicator(text: waitingText)
         }
 
-        // Timer must be scheduled on main thread to work reliably
-        DispatchQueue.main.async { [weak self] in
+        let timer = DispatchSource.makeTimerSource(queue: processingQueue)
+        timer.schedule(deadline: .now() + tapSequenceTimeout)
+        timer.setEventHandler { [weak self] in
             guard let self = self else { return }
 
-            self.tapTimer = Timer.scheduledTimer(withTimeInterval: self.tapSequenceTimeout, repeats: false) { [weak self] _ in
-                guard let self = self else { return }
+            FeedbackHUD.shared.hideWaitingIndicator()
 
-                // Hide waiting indicator
-                FeedbackHUD.shared.hideWaitingIndicator()
+            #if DEBUG
+            print("[GestureEngine] Tap timer fired, executing tap count: \(capturedTapCount)")
+            #endif
 
-                #if DEBUG
-                print("[GestureEngine] Tap timer fired, executing tap count: \(capturedTapCount)")
-                #endif
-
-                // Execute the highest completed tap type
-                let finalTapType: TapType
-                switch capturedTapCount {
-                case 3:
-                    finalTapType = .tripleTap
-                case 2:
-                    finalTapType = .doubleTap
-                default:
-                    finalTapType = .singleTap
-                }
-
-                self.lastTapFingerCount = capturedFingerCount
-                self.executeTapAction(for: finalTapType, timestamp: CACurrentMediaTime())
-                self.tapCount = 0
+            let finalTapType: TapType
+            switch capturedTapCount {
+            case 3:
+                finalTapType = .tripleTap
+            case 2:
+                finalTapType = .doubleTap
+            default:
+                finalTapType = .singleTap
             }
+
+            self.lastTapFingerCount = capturedFingerCount
+            self.executeTapAction(for: finalTapType, timestamp: CACurrentMediaTime())
+            self.tapCount = 0
         }
+        tapTimer = timer
+        timer.resume()
     }
 
     private func executeTapAction(for tapType: TapType, timestamp: Double) {
-        let action = getTapAction(fingerCount: lastTapFingerCount, tapType: tapType)
+        let result = getTapAction(fingerCount: lastTapFingerCount, tapType: tapType)
 
-        guard action != .none else { return }
+        guard result.action != .none else { return }
 
         // Check cooldown
         guard timestamp - lastActionTime >= gestureCooldown else { return }
@@ -726,8 +747,8 @@ class GestureEngine {
         // Show feedback
         FeedbackHUD.shared.flashAction(text: "\(lastTapFingerCount)F \(tapType.shortName)")
 
-        // Execute action
-        executeAction(action, timestamp: timestamp, gestureName: gestureName)
+        // Execute action with ruleId (needed for customShortcut actions)
+        executeAction(result.action, timestamp: timestamp, ruleId: result.ruleId, gestureName: gestureName)
     }
 
     // MARK: - Utility
@@ -792,13 +813,37 @@ class GestureEngine {
     // MARK: - Public API
 
     func reset() {
-        tapTimer?.invalidate()
-        tapTimer = nil
-        tapCount = 0
-        resetState()
+        asyncOnQueue { [weak self] in
+            guard let self = self else { return }
+            self.tapTimer?.cancel()
+            self.tapTimer = nil
+            self.tapCount = 0
+            self.resetState()
+        }
     }
 
     var isActive: Bool {
-        return state == .began || state == .changed
+        return syncOnQueue {
+            state == .began || state == .changed
+        }
+    }
+
+    private var isOnProcessingQueue: Bool {
+        DispatchQueue.getSpecific(key: queueKey) != nil
+    }
+
+    private func asyncOnQueue(_ block: @escaping () -> Void) {
+        if isOnProcessingQueue {
+            block()
+        } else {
+            processingQueue.async(execute: block)
+        }
+    }
+
+    private func syncOnQueue<T>(_ block: () -> T) -> T {
+        if isOnProcessingQueue {
+            return block()
+        }
+        return processingQueue.sync(execute: block)
     }
 }

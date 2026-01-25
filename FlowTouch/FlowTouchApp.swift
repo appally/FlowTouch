@@ -19,6 +19,7 @@ class MainWindowController: ObservableObject {
     @Published var shouldShowWindow = false
 
     private var observer: NSObjectProtocol?
+    private var fallbackWindow: NSWindow?
 
     init() {
         // Listen for show window notification from StatusBarManager
@@ -47,14 +48,8 @@ class MainWindowController: ObservableObject {
             return
         }
 
-        // No existing window found, request SwiftUI to open a new one
-        print("[MainWindowController] No existing window, requesting new window via notification")
-        NotificationCenter.default.post(name: NSNotification.Name("OpenNewWindow"), object: nil)
-
-        // Give SwiftUI time to create the window, then bring it to front
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { [weak self] in
-            _ = self?.bringExistingWindowToFront()
-        }
+        // No existing window found, create a fallback window directly
+        openOrCreateFallbackWindow()
     }
 
     @discardableResult
@@ -74,6 +69,34 @@ class MainWindowController: ObservableObject {
         }
 
         return false
+    }
+
+    private func openOrCreateFallbackWindow() {
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else { return }
+
+            if let window = self.fallbackWindow {
+                window.makeKeyAndOrderFront(nil)
+                return
+            }
+
+            let hostingView = NSHostingView(rootView: ContentView())
+            let window = NSWindow(
+                contentRect: NSRect(x: 0, y: 0, width: 800, height: 600),
+                styleMask: [.titled, .closable, .miniaturizable, .resizable],
+                backing: .buffered,
+                defer: false
+            )
+            window.titleVisibility = .hidden
+            window.titlebarAppearsTransparent = true
+            window.isReleasedWhenClosed = false
+            window.contentMinSize = NSSize(width: 800, height: 600)
+            window.contentView = hostingView
+            window.center()
+            window.makeKeyAndOrderFront(nil)
+
+            self.fallbackWindow = window
+        }
     }
 }
 

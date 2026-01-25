@@ -24,7 +24,17 @@ struct ScreenCoordinates {
 
     /// Get the primary screen height (used as reference for coordinate conversion)
     static var primaryScreenHeight: CGFloat {
-        return NSScreen.screens.first?.frame.height ?? 0
+        return primaryScreenFrame.maxY
+    }
+
+    private static var primaryScreenFrame: CGRect {
+        if let primary = NSScreen.screens.first(where: { $0.frame.origin == .zero }) {
+            return primary.frame
+        }
+        if let main = NSScreen.main {
+            return main.frame
+        }
+        return NSScreen.screens.first?.frame ?? .zero
     }
 
     /// Convert a point from Cocoa coordinates to Accessibility coordinates
@@ -109,7 +119,9 @@ class WindowManager {
 
     private func undoLastOperationOnMain() -> Bool {
         guard let lastOp = lastOperationWindow else {
+            #if DEBUG
             print("[WindowManager] No operation to undo")
+            #endif
             return false
         }
 
@@ -130,14 +142,18 @@ class WindowManager {
                 // Restore to previous frame
                 let success = setWindowFrame(window, frame: lastOp.previousFrame)
                 if success {
+                    #if DEBUG
                     print("[WindowManager] Undo successful: restored window to \(lastOp.previousFrame)")
+                    #endif
                     lastOperationWindow = nil  // Clear undo state after successful undo
                 }
                 return success
             }
         }
 
+        #if DEBUG
         print("[WindowManager] Could not find window to undo")
+        #endif
         return false
     }
 
@@ -224,7 +240,9 @@ class WindowManager {
 
         let screens = NSScreen.screens
         guard screens.count > 1 else {
+            #if DEBUG
             print("[WindowManager] Only one screen available")
+            #endif
             return false
         }
 
@@ -479,7 +497,9 @@ class WindowManager {
         let pressResult = AXUIElementPerformAction(closeButton as! AXUIElement, kAXPressAction as CFString)
 
         if pressResult == .success {
+            #if DEBUG
             print("[WindowManager] Window closed successfully")
+            #endif
             return true
         } else {
             print("[WindowManager] ERROR: Failed to close window, error: \(pressResult.rawValue)")
@@ -509,7 +529,9 @@ class WindowManager {
             let minimized: CFBoolean = kCFBooleanTrue
             let setResult = AXUIElementSetAttributeValue(axWindow, kAXMinimizedAttribute as CFString, minimized)
             if setResult == .success {
+                #if DEBUG
                 print("[WindowManager] Window minimized via attribute")
+                #endif
                 return true
             }
             print("[WindowManager] ERROR: Could not minimize window")
@@ -519,7 +541,9 @@ class WindowManager {
         let pressResult = AXUIElementPerformAction(minimizeButton as! AXUIElement, kAXPressAction as CFString)
 
         if pressResult == .success {
+            #if DEBUG
             print("[WindowManager] Window minimized successfully")
+            #endif
             return true
         } else {
             print("[WindowManager] ERROR: Failed to minimize window, error: \(pressResult.rawValue)")
@@ -552,7 +576,9 @@ class WindowManager {
             if zoomResult == .success, let zoomButton = zoomButtonRef {
                 let pressResult = AXUIElementPerformAction(zoomButton as! AXUIElement, kAXPressAction as CFString)
                 if pressResult == .success {
+                    #if DEBUG
                     print("[WindowManager] Fullscreen toggled via zoom button")
+                    #endif
                     return true
                 }
             }
@@ -564,7 +590,9 @@ class WindowManager {
         let pressResult = AXUIElementPerformAction(fullscreenButton as! AXUIElement, kAXPressAction as CFString)
 
         if pressResult == .success {
+            #if DEBUG
             print("[WindowManager] Fullscreen toggled successfully")
+            #endif
             return true
         } else {
             print("[WindowManager] ERROR: Failed to toggle fullscreen, error: \(pressResult.rawValue)")
@@ -678,7 +706,9 @@ class WindowManager {
 
         let success = posResult == .success || sizeResult == .success
         if success {
+            #if DEBUG
             print("[WindowManager] Snapped window to \(frame)")
+            #endif
         }
 
         return success
@@ -686,6 +716,11 @@ class WindowManager {
 
     /// Get a unique identifier for a window (for restore functionality)
     private func getWindowIdentifier(_ window: AXUIElement) -> String? {
+        var numberRef: CFTypeRef?
+        if AXUIElementCopyAttributeValue(window, kAXWindowNumberAttribute as CFString, &numberRef) == .success,
+           let number = numberRef as? NSNumber {
+            return "windowNumber:\(number.intValue)"
+        }
         var titleRef: CFTypeRef?
         if AXUIElementCopyAttributeValue(window, kAXTitleAttribute as CFString, &titleRef) == .success,
            let title = titleRef as? String {

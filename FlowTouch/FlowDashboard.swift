@@ -151,7 +151,7 @@ private struct SidebarRow: View {
         switch item {
         case .all: return ruleManager.rules.count
         case .enabled: return ruleManager.enabledRules.count
-        case .disabled: return 0
+        case .disabled: return ruleManager.disabledRules.count
         }
     }
     
@@ -1427,4 +1427,3 @@ struct AppSelectionView: View {
         }
     }
 }
-

@@ -45,6 +45,8 @@ class MultitouchManager: ObservableObject {
 
     private var devices: [MTDeviceRef] = []
     private var isRunning = false
+    private var eventTap: CFMachPort?
+    private var eventTapSource: CFRunLoopSource?
 
     @Published var status: ManagerStatus = .unknown
     @Published var debugLog: String = ""
@@ -73,39 +75,15 @@ class MultitouchManager: ObservableObject {
         var conflicts: [SystemGestureConflict] = []
 
         // Read system trackpad preferences
-        let defaults = UserDefaults.standard
-
         // 3-finger swipe between pages (Safari, Preview, etc.)
-        let threeFingerSwipe = defaults.bool(forKey: "com.apple.trackpad.threeFingerHorizSwipeGesture")
+        let threeFingerSwipe = readTrackpadBool("com.apple.trackpad.threeFingerHorizSwipeGesture", defaultValue: false)
         // Alternative key used in some macOS versions
-        let threeFingerDrag = CFPreferencesCopyValue(
-            "com.apple.trackpad.threeFingerDrag" as CFString,
-            "com.apple.AppleMultitouchTrackpad" as CFString,
-            kCFPreferencesCurrentUser,
-            kCFPreferencesAnyHost
-        ) as? Bool ?? false
+        let threeFingerDrag = readTrackpadBool("com.apple.trackpad.threeFingerDrag", defaultValue: false)
 
         // 4-finger gestures
-        let missionControl = CFPreferencesCopyValue(
-            "TrackpadFourFingerVertSwipeGesture" as CFString,
-            "com.apple.AppleMultitouchTrackpad" as CFString,
-            kCFPreferencesCurrentUser,
-            kCFPreferencesAnyHost
-        ) as? Int ?? 2  // Default is usually enabled
-
-        let appExpose = CFPreferencesCopyValue(
-            "TrackpadFourFingerHorizSwipeGesture" as CFString,
-            "com.apple.AppleMultitouchTrackpad" as CFString,
-            kCFPreferencesCurrentUser,
-            kCFPreferencesAnyHost
-        ) as? Int ?? 2
-
-        let launchpad = CFPreferencesCopyValue(
-            "TrackpadFourFingerPinchGesture" as CFString,
-            "com.apple.AppleMultitouchTrackpad" as CFString,
-            kCFPreferencesCurrentUser,
-            kCFPreferencesAnyHost
-        ) as? Bool ?? true
+        let missionControl = readTrackpadInt("TrackpadFourFingerVertSwipeGesture", defaultValue: 2)
+        let appExpose = readTrackpadInt("TrackpadFourFingerHorizSwipeGesture", defaultValue: 2)
+        let launchpad = readTrackpadBool("TrackpadFourFingerPinchGesture", defaultValue: true)
 
         // Check FlowTouch rules for conflicts
         let rules = RuleManager.shared.rules.filter { $0.isEnabled }
@@ -246,6 +224,7 @@ class MultitouchManager: ObservableObject {
         DispatchQueue.main.async {
             self.status = .unknown
         }
+        cleanupEventTap()
     }
 
     // MARK: - Permission Handling
@@ -257,6 +236,11 @@ class MultitouchManager: ObservableObject {
 
         if !hasAccessibility {
             log("Accessibility permission required for window management", level: .warning)
+            if status != .permissionDenied {
+                status = .accessibilityDenied
+            }
+        } else if status == .accessibilityDenied {
+            status = isRunning ? .active : .unknown
         }
 
         // Input Monitoring is harder to check directly - we infer from device access
@@ -275,6 +259,17 @@ class MultitouchManager: ObservableObject {
     }
 
     func requestInputMonitoring() {
+        if !Thread.isMainThread {
+            DispatchQueue.main.async { [weak self] in
+                self?.requestInputMonitoring()
+            }
+            return
+        }
+
+        if eventTap != nil {
+            return
+        }
+
         log("Attempting to trigger Input Monitoring permission dialog...")
 
         let eventMask = (1 << CGEventType.flagsChanged.rawValue)
@@ -297,8 +292,15 @@ class MultitouchManager: ObservableObject {
         CFRunLoopAddSource(CFRunLoopGetCurrent(), runLoopSource, .commonModes)
         CGEvent.tapEnable(tap: eventTap, enable: true)
 
+        self.eventTap = eventTap
+        self.eventTapSource = runLoopSource
+
         hasInputMonitoring = true
         log("Event Tap created successfully. Input Monitoring appears to be granted.")
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+            self?.cleanupEventTap()
+        }
     }
 
     // MARK: - Device Management
@@ -373,12 +375,12 @@ class MultitouchManager: ObservableObject {
 
         DispatchQueue.main.async {
             if allStarted {
-                self.status = .active
-                self.log("All devices started. FlowTouch is active!")
-
-                // Also check accessibility now
-                if !self.hasAccessibility {
-                    self.log("Note: Accessibility permission not yet granted. Window management may not work.", level: .warning)
+                if self.hasAccessibility {
+                    self.status = .active
+                    self.log("All devices started. FlowTouch is active!")
+                } else {
+                    self.status = .accessibilityDenied
+                    self.log("Accessibility permission not yet granted. Window management may not work.", level: .warning)
                 }
             }
         }
@@ -403,6 +405,66 @@ class MultitouchManager: ObservableObject {
 
     var needsPermissionSetup: Bool {
         return status == .permissionDenied || status == .accessibilityDenied
+    }
+
+    // MARK: - Trackpad Preferences
+
+    private let trackpadPreferenceDomains = [
+        "com.apple.AppleMultitouchTrackpad",
+        "com.apple.driver.AppleBluetoothMultitouch.trackpad"
+    ]
+
+    private func readTrackpadPreference(_ key: String) -> Any? {
+        for domain in trackpadPreferenceDomains {
+            if let value = CFPreferencesCopyValue(
+                key as CFString,
+                domain as CFString,
+                kCFPreferencesCurrentUser,
+                kCFPreferencesAnyHost
+            ) {
+                return value
+            }
+        }
+        return nil
+    }
+
+    private func readTrackpadBool(_ key: String, defaultValue: Bool) -> Bool {
+        if let value = readTrackpadPreference(key) {
+            if let boolValue = value as? Bool {
+                return boolValue
+            }
+            if let number = value as? NSNumber {
+                return number.boolValue
+            }
+        }
+        return defaultValue
+    }
+
+    private func readTrackpadInt(_ key: String, defaultValue: Int) -> Int {
+        if let value = readTrackpadPreference(key) {
+            if let number = value as? NSNumber {
+                return number.intValue
+            }
+        }
+        return defaultValue
+    }
+
+    private func cleanupEventTap() {
+        if !Thread.isMainThread {
+            DispatchQueue.main.async { [weak self] in
+                self?.cleanupEventTap()
+            }
+            return
+        }
+
+        if let source = eventTapSource {
+            CFRunLoopRemoveSource(CFRunLoopGetCurrent(), source, .commonModes)
+            eventTapSource = nil
+        }
+        if let tap = eventTap {
+            CFMachPortInvalidate(tap)
+            eventTap = nil
+        }
     }
 }
 
