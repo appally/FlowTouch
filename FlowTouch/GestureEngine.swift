@@ -18,6 +18,7 @@ class GestureEngine {
 
     private let processingQueue = DispatchQueue(label: "FlowTouch.GestureEngine", qos: .userInteractive)
     private let queueKey = DispatchSpecificKey<Void>()
+    private let actionQueue = DispatchQueue(label: "FlowTouch.GestureEngine.actions", qos: .userInitiated)
 
     private init() {
         processingQueue.setSpecific(key: queueKey, value: ())
@@ -87,6 +88,7 @@ class GestureEngine {
     private let tapMovementThreshold: Float = 0.045  // More tolerant for multi-finger (increased from 0.035)
     private let tapMaxDuration: TimeInterval = 0.40  // Allow slightly longer taps (increased from 0.35)
     private let tapSequenceTimeout: TimeInterval = 0.30  // Comfortable double-tap interval (increased from 0.18)
+    private let tapCooldown: TimeInterval = 0.12
 
     // Direction unlock constants
     private let directionUnlockAngle: Float = 60  // Degrees: allow direction change if angle diff > this
@@ -190,6 +192,11 @@ class GestureEngine {
     private func isFingerCountEnabled(_ count: Int) -> Bool {
         let hasRulesForCount = ruleManager.enabledRules.contains { $0.trigger.fingerCount == count }
         return hasRulesForCount || config.enabledFingerCounts.contains(count)
+    }
+
+    private func isSwipeEnabled(for count: Int) -> Bool {
+        let hasSwipeRules = ruleManager.enabledRules.contains { $0.trigger.type == .swipe && $0.trigger.fingerCount == count }
+        return hasSwipeRules || config.swipeMapping(for: count).configuredCount > 0
     }
 
     // MARK: - Process Frame
@@ -310,8 +317,9 @@ class GestureEngine {
             }
         }
 
-        // Check for movement threshold
-        if distance > gestureStartThreshold {
+        // Check for movement threshold (favor tap if swipe isn't configured)
+        let swipeStartThreshold = isTapCandidate ? max(gestureStartThreshold, tapMovementThreshold) : gestureStartThreshold
+        if isSwipeEnabled(for: fingerCount) && distance > swipeStartThreshold {
             state = .began
             isTapCandidate = false  // Not a tap - it's a swipe
             lockedDirection = determineSwipeDirection(dx: dx, dy: dy)
@@ -380,7 +388,7 @@ class GestureEngine {
         }
 
         // Check for swipe
-        if distance > effectiveThreshold * 0.6 {
+        if isSwipeEnabled(for: fingerCount) && distance > effectiveThreshold * 0.6 {
             // Determine current direction
             let currentDirection = determineSwipeDirection(dx: dx, dy: dy)
 
@@ -405,7 +413,11 @@ class GestureEngine {
 
             // Execute when threshold fully met
             if distance > effectiveThreshold {
-                let gestureName = "\(fingerCount)指\(direction.displayName)滑"
+                let gestureName = String(
+                    format: L("gesture_swipe_format"),
+                    fingerCount,
+                    direction.displayName
+                )
                 #if DEBUG
                 print("[GestureEngine] Swipe executed: \(fingerCount)F \(direction.displayName) -> \(action), distance: \(distance), threshold: \(effectiveThreshold)")
                 #endif
@@ -476,7 +488,7 @@ class GestureEngine {
         // If same as current, nothing to do
         guard direction != currentPreviewDirection else {
             pendingPreviewDirection = nil
-            previewDebounceTimer?.invalidate()
+            previewDebounceTimer?.cancel()
             return
         }
 
@@ -535,77 +547,83 @@ class GestureEngine {
             return
         }
 
-        // Show action feedback
-        FeedbackHUD.shared.flashAction(text: action.shortName)
+        // Show action feedback on main thread
+        DispatchQueue.main.async {
+            FeedbackHUD.shared.flashAction(text: action.shortName)
+        }
 
-        // Execute the action based on category
-        switch action {
-        // Window Layout actions - use WindowManager
-        case .snapLeft, .snapRight, .snapTop, .snapBottom,
-             .snapTopLeft, .snapTopRight, .snapBottomLeft, .snapBottomRight,
-             .maximize, .center, .restore:
-            if let direction = action.snapDirection {
-                WindowManager.shared.snapFocusedWindow(direction: direction)
+        let actionToExecute = action
+        let ruleIdToExecute = ruleId
+        actionQueue.async {
+            // Execute the action based on category
+            switch actionToExecute {
+            // Window Layout actions - use WindowManager
+            case .snapLeft, .snapRight, .snapTop, .snapBottom,
+                 .snapTopLeft, .snapTopRight, .snapBottomLeft, .snapBottomRight,
+                 .maximize, .center, .restore:
+                if let direction = actionToExecute.snapDirection {
+                    WindowManager.shared.snapFocusedWindow(direction: direction)
+                }
+
+            // Basic window control - use WindowManager
+            case .minimize:
+                WindowManager.shared.minimizeFocusedWindow()
+
+            case .close:
+                WindowManager.shared.closeFocusedWindow()
+
+            case .fullscreen:
+                WindowManager.shared.toggleFullscreen()
+
+            case .undo:
+                WindowManager.shared.undoLastOperation()
+
+            // Extended window control - use SystemActionsManager
+            case .maximizeHeight, .maximizeWidth, .minimizeAll, .restoreAllMinimized:
+                SystemActionsManager.shared.execute(actionToExecute)
+
+            // Multi-monitor & Spaces
+            case .moveToNextScreen:
+                WindowManager.shared.moveToNextScreen()
+
+            case .moveToPrevScreen:
+                WindowManager.shared.moveToPrevScreen()
+
+            case .spaceLeft, .spaceRight, .moveToNextSpace, .moveToPrevSpace:
+                SystemActionsManager.shared.execute(actionToExecute)
+
+            // Desktop & System actions - use SystemActionsManager
+            case .missionControl, .showDesktop, .appExpose, .launchpad,
+                 .spotlight, .lockScreen, .startScreensaver:
+                SystemActionsManager.shared.execute(actionToExecute)
+
+            // Application control - use SystemActionsManager
+            case .quitApp, .hideApp, .hideOthers, .switchApp, .previousApp:
+                SystemActionsManager.shared.execute(actionToExecute)
+
+            // Tab control - use SystemActionsManager
+            case .newTab, .closeTab, .nextTab, .prevTab:
+                SystemActionsManager.shared.execute(actionToExecute)
+
+            // Media control - use SystemActionsManager
+            case .playPause, .nextTrack, .prevTrack, .volumeUp, .volumeDown, .volumeMute:
+                SystemActionsManager.shared.execute(actionToExecute)
+
+            // Brightness control - use SystemActionsManager
+            case .brightnessUp, .brightnessDown:
+                SystemActionsManager.shared.execute(actionToExecute)
+
+            // Screenshot - use SystemActionsManager
+            case .screenshot, .screenshotArea, .screenshotWindow:
+                SystemActionsManager.shared.execute(actionToExecute)
+
+            // Custom shortcut - use SystemActionsManager with ruleId
+            case .customShortcut:
+                SystemActionsManager.shared.execute(actionToExecute, ruleId: ruleIdToExecute)
+
+            case .none:
+                break
             }
-
-        // Basic window control - use WindowManager
-        case .minimize:
-            WindowManager.shared.minimizeFocusedWindow()
-
-        case .close:
-            WindowManager.shared.closeFocusedWindow()
-
-        case .fullscreen:
-            WindowManager.shared.toggleFullscreen()
-
-        case .undo:
-            WindowManager.shared.undoLastOperation()
-
-        // Extended window control - use SystemActionsManager
-        case .maximizeHeight, .maximizeWidth, .minimizeAll, .restoreAllMinimized:
-            SystemActionsManager.shared.execute(action)
-
-        // Multi-monitor & Spaces
-        case .moveToNextScreen:
-            WindowManager.shared.moveToNextScreen()
-
-        case .moveToPrevScreen:
-            WindowManager.shared.moveToPrevScreen()
-
-        case .spaceLeft, .spaceRight, .moveToNextSpace, .moveToPrevSpace:
-            SystemActionsManager.shared.execute(action)
-
-        // Desktop & System actions - use SystemActionsManager
-        case .missionControl, .showDesktop, .appExpose, .launchpad,
-             .spotlight, .lockScreen, .startScreensaver:
-            SystemActionsManager.shared.execute(action)
-
-        // Application control - use SystemActionsManager
-        case .quitApp, .hideApp, .hideOthers, .switchApp, .previousApp:
-            SystemActionsManager.shared.execute(action)
-
-        // Tab control - use SystemActionsManager
-        case .newTab, .closeTab, .nextTab, .prevTab:
-            SystemActionsManager.shared.execute(action)
-
-        // Media control - use SystemActionsManager
-        case .playPause, .nextTrack, .prevTrack, .volumeUp, .volumeDown, .volumeMute:
-            SystemActionsManager.shared.execute(action)
-
-        // Brightness control - use SystemActionsManager
-        case .brightnessUp, .brightnessDown:
-            SystemActionsManager.shared.execute(action)
-
-        // Screenshot - use SystemActionsManager
-        case .screenshot, .screenshotArea, .screenshotWindow:
-            SystemActionsManager.shared.execute(action)
-
-        // Custom shortcut - use SystemActionsManager with ruleId
-        case .customShortcut:
-            SystemActionsManager.shared.execute(action, ruleId: ruleId)
-
-        case .none:
-            break
         }
 
         lastActionTime = timestamp
@@ -632,7 +650,7 @@ class GestureEngine {
         lastTapFingerCount = fingerCount
 
         // Cancel any pending tap timer
-        tapTimer?.invalidate()
+        tapTimer?.cancel()
         tapTimer = nil
 
         // Get actions for all tap types to determine execution strategy
@@ -694,16 +712,6 @@ class GestureEngine {
         let capturedTapCount = tapCount
         let capturedFingerCount = fingerCount
 
-        // Show waiting indicator if there might be more taps coming
-        // Only show if double/triple tap actions are configured
-        let hasDoubleTapAction = getTapAction(fingerCount: fingerCount, tapType: .doubleTap).action != .none
-        let hasTripleTapAction = getTapAction(fingerCount: fingerCount, tapType: .tripleTap).action != .none
-
-        if (capturedTapCount == 1 && hasDoubleTapAction) || (capturedTapCount == 2 && hasTripleTapAction) {
-            let waitingText = capturedTapCount == 1 ? "等待更多点击..." : "等待第三次点击..."
-            FeedbackHUD.shared.showWaitingIndicator(text: waitingText)
-        }
-
         let timer = DispatchSource.makeTimerSource(queue: processingQueue)
         timer.schedule(deadline: .now() + tapSequenceTimeout)
         timer.setEventHandler { [weak self] in
@@ -739,13 +747,14 @@ class GestureEngine {
         guard result.action != .none else { return }
 
         // Check cooldown
-        guard timestamp - lastActionTime >= gestureCooldown else { return }
+        guard timestamp - lastActionTime >= tapCooldown else { return }
 
         // Build gesture name for learning mode
-        let gestureName = "\(lastTapFingerCount)指\(tapType.displayName)"
-
-        // Show feedback
-        FeedbackHUD.shared.flashAction(text: "\(lastTapFingerCount)F \(tapType.shortName)")
+        let gestureName = String(
+            format: L("gesture_tap_format"),
+            lastTapFingerCount,
+            tapType.displayName
+        )
 
         // Execute action with ruleId (needed for customShortcut actions)
         executeAction(result.action, timestamp: timestamp, ruleId: result.ruleId, gestureName: gestureName)

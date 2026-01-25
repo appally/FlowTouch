@@ -32,6 +32,7 @@ struct DesignSystem {
 
 struct ContentView: View {
     @ObservedObject var manager = MultitouchManager.shared
+    @ObservedObject var localization = LocalizationManager.shared
 
     var body: some View {
         Group {
@@ -50,6 +51,7 @@ struct ContentView: View {
             }
         }
         .frame(minWidth: 800, minHeight: 600)
+        .environment(\.locale, localization.locale)
     }
 }
 
@@ -220,7 +222,7 @@ struct GestureTypeTab: View {
                 Image(systemName: type.icon)
                     .font(.system(size: 14))
 
-                Text(type.rawValue)
+                Text(type.displayName)
                     .font(.system(size: 13, weight: isSelected ? .semibold : .medium))
 
                 // Badge showing configured count
@@ -334,7 +336,7 @@ struct FingerButton: View {
         .buttonStyle(.plain)
         .onHover { isHovered = $0 }
         .contextMenu {
-            Button(isEnabled ? "Disable \(count) fingers" : "Enable \(count) fingers") {
+            Button(String(format: L(isEnabled ? "disable_fingers_format" : "enable_fingers_format"), count)) {
                 onToggle()
             }
         }
@@ -518,17 +520,17 @@ struct SwipeCell: View {
                 Button {
                     testAction()
                 } label: {
-                    Label("Test: \(action.displayName)", systemImage: "play.fill")
+                    Label(String(format: L("Test: %@"), action.displayName), systemImage: "play.fill")
                 }
                 Divider()
             }
             Button {
                 onTap()
             } label: {
-                Label(isConfigured ? "Change Action" : "Set Action", systemImage: "pencil")
+                Label(isConfigured ? L("Change Action") : L("Set Action"), systemImage: "pencil")
             }
         }
-        .help(isConfigured ? "Click to change • Right-click to test" : "Click to set action")
+        .help(isConfigured ? L("Click to change • Right-click to test") : L("Click to set action"))
     }
 
     private func testAction() {
@@ -681,7 +683,7 @@ struct TapActionCard: View {
                         .font(.system(size: 13, weight: .medium))
                         .foregroundColor(isConfigured ? .primary : .gray)
 
-                    Text(isConfigured ? action.displayName : "Not configured")
+                    Text(isConfigured ? action.displayName : L("Not configured"))
                         .font(.system(size: 12))
                         .foregroundColor(isConfigured ? .secondary : .gray.opacity(0.6))
                 }
@@ -1146,7 +1148,7 @@ struct CollapsibleCategorySection: View {
                             .font(.system(size: 12))
                             .foregroundColor(categoryColor)
 
-                        Text(category.rawValue)
+                        Text(category.displayName)
                             .font(.system(size: 12, weight: .medium))
                             .foregroundColor(.primary)
 
@@ -1310,7 +1312,7 @@ struct ActionCategorySection: View {
                         .font(.system(size: 12))
                         .foregroundColor(categoryColor)
 
-                    Text(category.rawValue)
+                    Text(category.displayName)
                         .font(.system(size: 12, weight: .semibold))
                         .foregroundColor(.secondary)
                 }
@@ -1424,6 +1426,8 @@ struct SettingsView: View {
     @ObservedObject var configManager = ConfigurationManager.shared
     @ObservedObject var ruleManager = RuleManager.shared
     @ObservedObject var multitouchManager = MultitouchManager.shared
+    @ObservedObject var appSettings = AppSettings.shared
+    @ObservedObject var localization = LocalizationManager.shared
 
     @State private var showingExportSuccess = false
     @State private var showingImportPicker = false
@@ -1434,91 +1438,107 @@ struct SettingsView: View {
     var body: some View {
         VStack(spacing: 0) {
             HStack {
-                Text("设置")
+                Text(L("设置"))
                     .font(.headline)
                 Spacer()
-                Button("完成") { dismiss() }
-                    .buttonStyle(.borderedProminent)
+                Button(action: { dismiss() }) {
+                    Text(L("完成"))
+                }
+                .buttonStyle(.borderedProminent)
             }
             .padding()
 
             Divider()
 
             Form {
-                Section("启动") {
-                    Toggle("登录时启动", isOn: Binding(
-                        get: { LaunchAtLoginManager.shared.isEnabled },
-                        set: { LaunchAtLoginManager.shared.isEnabled = $0 }
-                    ))
-                }
-
-                Section("手势学习") {
-                    Button(action: { showingLearningMode = true }) {
-                        HStack {
-                            Image(systemName: "hand.draw")
-                                .foregroundColor(.blue)
-                            Text("试试手势")
-                            Spacer()
-                            Text("学习模式")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                            Image(systemName: "chevron.right")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
+                Section {
+                    Picker(selection: $localization.language, label: Text(L("语言"))) {
+                        ForEach(AppLanguage.allCases) { language in
+                            Text(language.displayName)
+                                .tag(language)
                         }
                     }
+                    .pickerStyle(.menu)
+                } header: {
+                    Text(L("语言"))
                 }
 
-                Section("灵敏度") {
+                Section {
+                    Toggle(isOn: Binding(
+                        get: { LaunchAtLoginManager.shared.isEnabled },
+                        set: { LaunchAtLoginManager.shared.isEnabled = $0 }
+                    )) {
+                        Text(L("登录时启动"))
+                    }
+                } header: {
+                    Text(L("启动"))
+                }
+
+                Section {
+                    Toggle(isOn: $appSettings.showDockIcon) {
+                        Text(L("在程序坞中显示图标"))
+                    }
+                    Toggle(isOn: $appSettings.showMenuBarIcon) {
+                        Text(L("在菜单中显示图标"))
+                    }
+                } header: {
+                    Text(L("程序坞"))
+                }
+
+                Section {
                     VStack(alignment: .leading, spacing: 8) {
                         HStack {
-                            Text("滑动阈值")
+                            Text(L("滑动阈值"))
                             Spacer()
                             Text(String(format: "%.2f", configManager.config.swipeThreshold))
                                 .foregroundColor(.secondary)
                         }
                         Slider(value: $configManager.config.swipeThreshold, in: 0.06...0.25, step: 0.01)
                     }
+                } header: {
+                    Text(L("灵敏度"))
                 }
 
-                Section("权限状态") {
+                Section {
                     HStack {
-                        Text("输入监控")
+                        Text(L("输入监控"))
                         Spacer()
                         if multitouchManager.hasInputMonitoring {
                             HStack(spacing: 4) {
                                 Image(systemName: "checkmark.circle.fill")
                                     .foregroundColor(.green)
-                                Text("已授权")
+                                Text(L("已授权"))
                                     .font(.caption)
                                     .foregroundColor(.secondary)
                             }
                         } else {
-                            Button("授权") {
-                                multitouchManager.requestInputMonitoringPermission()
+                            Button(action: { multitouchManager.requestInputMonitoringPermission() }) {
+                                Text(L("授权"))
                             }
                             .buttonStyle(.bordered)
                         }
                     }
 
                     HStack {
-                        Text("辅助功能")
+                        Text(L("辅助功能"))
                         Spacer()
                         if multitouchManager.hasAccessibility {
                             HStack(spacing: 4) {
                                 Image(systemName: "checkmark.circle.fill")
                                     .foregroundColor(.green)
-                                Text("已授权")
+                                Text(L("已授权"))
                                     .font(.caption)
                                     .foregroundColor(.secondary)
                             }
                         } else {
-                            Button("授权") {
-                                multitouchManager.requestAccessibilityPermission()
+                            Button(action: { multitouchManager.requestAccessibilityPermission() }) {
+                                Text(L("授权"))
                             }
                             .buttonStyle(.bordered)
                         }
                     }
+                } header: {
+                    Text(L("权限状态"))
                 }
 
                 // System gesture conflicts warning
@@ -1530,12 +1550,12 @@ struct SettingsView: View {
                                     Image(systemName: "exclamationmark.triangle.fill")
                                         .foregroundColor(.orange)
                                         .font(.system(size: 14))
-                                    Text("手势冲突")
+                                    Text(L("手势冲突"))
                                         .font(.subheadline)
                                         .fontWeight(.medium)
                                 }
 
-                                Text("系统「\(conflict.systemGesture)」与 FlowTouch「\(conflict.flowTouchGesture)」可能冲突")
+                                Text(String(format: L("system_gesture_conflict_format"), conflict.systemGesture, conflict.flowTouchGesture))
                                     .font(.caption)
                                     .foregroundColor(.secondary)
 
@@ -1551,70 +1571,74 @@ struct SettingsView: View {
                         }) {
                             HStack {
                                 Image(systemName: "gear")
-                                Text("打开触控板设置")
+                                Text(L("打开触控板设置"))
                             }
                         }
                     } header: {
                         HStack {
                             Image(systemName: "exclamationmark.triangle.fill")
                                 .foregroundColor(.orange)
-                            Text("系统手势冲突")
+                            Text(L("系统手势冲突"))
                         }
                     }
                 }
 
-                Section("规则管理") {
+                Section {
                     HStack {
-                        Text("当前规则数")
+                        Text(L("当前规则数"))
                         Spacer()
-                        Text("\(ruleManager.rules.count) 条")
+                        Text("\(ruleManager.rules.count) \(L("条"))")
                             .foregroundColor(.secondary)
                     }
 
                     Button(action: exportRules) {
                         HStack {
                             Image(systemName: "square.and.arrow.up")
-                            Text("导出规则")
+                            Text(L("导出规则"))
                         }
                     }
 
                     Button(action: { showingImportPicker = true }) {
                         HStack {
                             Image(systemName: "square.and.arrow.down")
-                            Text("导入规则")
+                            Text(L("导入规则"))
                         }
                     }
+                } header: {
+                    Text(L("规则管理"))
                 }
 
-                Section("数据") {
-                    Button("重置规则为默认", role: .destructive) {
+                Section {
+                    Button(L("重置规则为默认"), role: .destructive) {
                         showingResetConfirmation = true
                     }
+                } header: {
+                    Text(L("数据"))
                 }
             }
             .formStyle(.grouped)
         }
         .frame(width: 400, height: 480)
-        .alert("导出成功", isPresented: $showingExportSuccess) {
-            Button("确定", role: .cancel) { }
+        .alert(L("导出成功"), isPresented: $showingExportSuccess) {
+            Button(L("确定"), role: .cancel) { }
         } message: {
-            Text("规则已导出到桌面")
+            Text(L("规则已导出到桌面"))
         }
-        .alert("导入失败", isPresented: .init(
+        .alert(L("导入失败"), isPresented: .init(
             get: { importError != nil },
             set: { if !$0 { importError = nil } }
         )) {
-            Button("确定", role: .cancel) { }
+            Button(L("确定"), role: .cancel) { }
         } message: {
             Text(importError ?? "")
         }
-        .confirmationDialog("确定要重置所有规则吗？", isPresented: $showingResetConfirmation) {
-            Button("重置", role: .destructive) {
+        .confirmationDialog(L("确定要重置所有规则吗？"), isPresented: $showingResetConfirmation) {
+            Button(L("重置"), role: .destructive) {
                 ruleManager.clearAllRules()
             }
-            Button("取消", role: .cancel) { }
+            Button(L("取消"), role: .cancel) { }
         } message: {
-            Text("这将删除所有自定义规则。")
+            Text(L("这将删除所有自定义规则。"))
         }
         .fileImporter(
             isPresented: $showingImportPicker,
@@ -1631,14 +1655,14 @@ struct SettingsView: View {
                         if ruleManager.importRules(from: data, replace: false) {
                             // Success
                         } else {
-                            importError = "无效的规则文件格式"
+                            importError = L("无效的规则文件格式")
                         }
                     } catch {
-                        importError = "读取文件失败: \(error.localizedDescription)"
+                        importError = "\(L("读取文件失败")): \(error.localizedDescription)"
                     }
                 }
             case .failure(let error):
-                importError = "选择文件失败: \(error.localizedDescription)"
+                importError = "\(L("选择文件失败")): \(error.localizedDescription)"
             }
         }
         .sheet(isPresented: $showingLearningMode) {
@@ -1665,7 +1689,7 @@ struct SettingsView: View {
             try data.write(to: fileURL)
             showingExportSuccess = true
         } catch {
-            importError = "导出失败: \(error.localizedDescription)"
+            importError = "\(L("导出失败")): \(error.localizedDescription)"
         }
     }
 }
@@ -1706,7 +1730,7 @@ struct GestureLearningView: View {
                     .frame(width: 10, height: 10)
                     .shadow(color: isActive ? .green.opacity(0.5) : .clear, radius: 4)
 
-                Text(isActive ? "学习模式已启用 - 手势不会执行动作" : "正在启动...")
+                Text(isActive ? L("学习模式已启用 - 手势不会执行动作") : L("正在启动..."))
                     .font(.subheadline)
                     .foregroundColor(isActive ? .primary : .secondary)
 
@@ -1829,7 +1853,7 @@ struct NoDeviceView: View {
                             ProgressView()
                                 .scaleEffect(0.8)
                         }
-                        Text(isRetrying ? "正在检测..." : "重新检测")
+                        Text(isRetrying ? L("正在检测...") : L("重新检测"))
                     }
                     .frame(minWidth: 120)
                 }

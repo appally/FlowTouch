@@ -39,6 +39,8 @@ struct FlowDashboard: View {
     @State private var editingRule: GestureRule?
     @State private var showingSettings = false
     @State private var searchText = ""
+    @State private var isSearchVisible = false
+    @FocusState private var isSearchFocused: Bool
     
     var body: some View {
         NavigationSplitView {
@@ -57,21 +59,55 @@ struct FlowDashboard: View {
                     )
                 }
             }
-            .navigationTitle(selection?.rawValue ?? "FlowTouch")
+            .navigationTitle(LocalizedStringKey(selection?.rawValue ?? "FlowTouch"))
             .toolbar {
                 ToolbarItem(placement: .primaryAction) {
                     Button(action: { showingAddRule = true }) {
                         Label("添加规则", systemImage: "plus")
                     }
                 }
-                
-                ToolbarItem(placement: .automatic) {
+
+                ToolbarItemGroup(placement: .primaryAction) {
+                    if isSearchVisible {
+                        HStack(spacing: 6) {
+                            TextField("搜索规则...", text: $searchText)
+                                .textFieldStyle(.roundedBorder)
+                                .frame(minWidth: 180, maxWidth: 260)
+                                .focused($isSearchFocused)
+                                .onSubmit {
+                                    if searchText.isEmpty {
+                                        isSearchVisible = false
+                                    }
+                                }
+
+                            Button {
+                                searchText = ""
+                                isSearchVisible = false
+                            } label: {
+                                Image(systemName: "xmark.circle.fill")
+                                    .foregroundColor(.secondary)
+                            }
+                            .buttonStyle(.plain)
+                            .help("关闭搜索")
+                        }
+                        .onAppear {
+                            DispatchQueue.main.async { isSearchFocused = true }
+                        }
+                    } else {
+                        Button {
+                            isSearchVisible = true
+                            DispatchQueue.main.async { isSearchFocused = true }
+                        } label: {
+                            Image(systemName: "magnifyingglass")
+                        }
+                        .help("搜索")
+                    }
+
                     Button(action: { showingSettings = true }) {
                         Label("设置", systemImage: "gearshape")
                     }
                 }
             }
-            .searchable(text: $searchText, placement: .toolbar, prompt: "搜索规则...")
         }
         .sheet(isPresented: $showingAddRule) {
             AddRuleSheet(onDismiss: { showingAddRule = false })
@@ -114,8 +150,8 @@ struct SidebarView: View {
         return HStack(spacing: 8) {
             BreathingIndicator(isActive: isActive)
                 .frame(width: 6, height: 6)
-            
-            Text(isActive ? "FlowTouch 运行中" : "未激活")
+
+            Text(LocalizedStringKey(isActive ? "FlowTouch 运行中" : "未激活"))
                 .font(.system(size: 11, weight: .medium))
                 .foregroundColor(.secondary)
             
@@ -159,7 +195,7 @@ private struct SidebarRow: View {
         HStack {
             Image(systemName: item.icon)
                 .font(.system(size: 14))
-            Text(item.rawValue)
+            Text(LocalizedStringKey(item.rawValue))
                 .font(.system(size: 13))
             
             Spacer()
@@ -571,7 +607,7 @@ struct AddRuleSheet: View {
                 Section("生效范围") {
                     Picker("应用范围", selection: $scopeType) {
                         ForEach(ScopeType.allCases) { type in
-                            Label(type.rawValue, systemImage: type.icon).tag(type)
+                            Label(LocalizedStringKey(type.rawValue), systemImage: type.icon).tag(type)
                         }
                     }
                     .pickerStyle(.segmented)
@@ -837,7 +873,7 @@ struct EditRuleSheet: View {
                 Section("生效范围") {
                     Picker("应用范围", selection: $scopeType) {
                         ForEach(AddRuleSheet.ScopeType.allCases) { type in
-                            Label(type.rawValue, systemImage: type.icon).tag(type)
+                            Label(LocalizedStringKey(type.rawValue), systemImage: type.icon).tag(type)
                         }
                     }
                     .pickerStyle(.segmented)

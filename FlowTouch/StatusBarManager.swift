@@ -10,28 +10,50 @@ class StatusBarManager: NSObject {
 
     private var statusItem: NSStatusItem?
     private var menu: NSMenu?
+    private var didRegisterLanguageObserver = false
+    private let menuIconSize = NSSize(width: 18, height: 18)
+
+    private func L(_ key: String) -> String {
+        LocalizationManager.shared.localizedString(key)
+    }
 
     // MARK: - Setup
 
     func setup() {
+        guard statusItem == nil else {
+            updateStatus()
+            return
+        }
         // Create status bar item
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
 
         if let button = statusItem?.button {
-            // Use SF Symbol for the icon
-            if let image = NSImage(systemSymbolName: "hand.point.up.left", accessibilityDescription: "FlowTouch") {
+            if let image = loadMenuBarImage(named: "brush-ai-fill") {
+                button.image = image
+            } else if let image = NSImage(systemSymbolName: "hand.point.up.left", accessibilityDescription: "FlowTouch") {
                 image.isTemplate = true
+                image.size = menuIconSize
                 button.image = image
             } else {
                 button.title = "FT"
             }
-            button.toolTip = "FlowTouch - Two-Finger Window Control"
+            button.toolTip = L("FlowTouch - Two-Finger Window Control")
         }
 
         // Create menu
         setupMenu()
 
         statusItem?.menu = menu
+
+        if !didRegisterLanguageObserver {
+            NotificationCenter.default.addObserver(
+                self,
+                selector: #selector(handleLanguageChanged),
+                name: .languageChanged,
+                object: nil
+            )
+            didRegisterLanguageObserver = true
+        }
 
         print("[StatusBar] Menu bar icon created")
     }
@@ -46,43 +68,17 @@ class StatusBarManager: NSObject {
         statusItem.isEnabled = false
         menu?.addItem(statusItem)
 
-        // Status indicator
+        // Status indicator (dot + text, single line)
         let statusIndicator = NSMenuItem(title: getStatusText(), action: nil, keyEquivalent: "")
         statusIndicator.isEnabled = false
         statusIndicator.tag = 100
+        statusIndicator.attributedTitle = statusAttributedText()
         menu?.addItem(statusIndicator)
 
         menu?.addItem(NSMenuItem.separator())
 
-        // Quick window actions
-        let snapMenu = NSMenu()
-
-        let snapLeft = NSMenuItem(title: "← Left Half", action: #selector(snapLeft), keyEquivalent: "")
-        snapLeft.target = self
-        snapMenu.addItem(snapLeft)
-
-        let snapRight = NSMenuItem(title: "Right Half →", action: #selector(snapRight), keyEquivalent: "")
-        snapRight.target = self
-        snapMenu.addItem(snapRight)
-
-        snapMenu.addItem(NSMenuItem.separator())
-
-        let maximize = NSMenuItem(title: "↑ Maximize", action: #selector(maximize), keyEquivalent: "")
-        maximize.target = self
-        snapMenu.addItem(maximize)
-
-        let center = NSMenuItem(title: "◎ Center", action: #selector(centerWindow), keyEquivalent: "")
-        center.target = self
-        snapMenu.addItem(center)
-
-        let actionsItem = NSMenuItem(title: "Snap Window", action: nil, keyEquivalent: "")
-        actionsItem.submenu = snapMenu
-        menu?.addItem(actionsItem)
-
-        menu?.addItem(NSMenuItem.separator())
-
         // Launch at Login
-        let launchItem = NSMenuItem(title: "Launch at Login", action: #selector(toggleLaunchAtLogin), keyEquivalent: "")
+        let launchItem = NSMenuItem(title: L("登录时启动"), action: #selector(toggleLaunchAtLogin), keyEquivalent: "")
         launchItem.target = self
         launchItem.state = LaunchAtLoginManager.shared.isEnabled ? .on : .off
         launchItem.tag = 200
@@ -91,19 +87,21 @@ class StatusBarManager: NSObject {
         menu?.addItem(NSMenuItem.separator())
 
         // Show Window
-        let showWindowItem = NSMenuItem(title: "Show Window", action: #selector(showMainWindow), keyEquivalent: "")
+        let showWindowItem = NSMenuItem(title: L("显示主窗口"), action: #selector(showMainWindow), keyEquivalent: "")
         showWindowItem.target = self
+        showWindowItem.keyEquivalentModifierMask = [.command]
+        showWindowItem.keyEquivalent = ","
         menu?.addItem(showWindowItem)
 
         // Permissions
-        let permissionsItem = NSMenuItem(title: "Check Permissions", action: #selector(checkPermissions), keyEquivalent: "")
+        let permissionsItem = NSMenuItem(title: L("检查权限"), action: #selector(checkPermissions), keyEquivalent: "")
         permissionsItem.target = self
         menu?.addItem(permissionsItem)
 
         menu?.addItem(NSMenuItem.separator())
 
         // Quit
-        let quitItem = NSMenuItem(title: "Quit FlowTouch", action: #selector(quitApp), keyEquivalent: "q")
+        let quitItem = NSMenuItem(title: L("退出 FlowTouch"), action: #selector(quitApp), keyEquivalent: "q")
         quitItem.target = self
         menu?.addItem(quitItem)
 
@@ -115,15 +113,15 @@ class StatusBarManager: NSObject {
         let manager = MultitouchManager.shared
         switch manager.status {
         case .active:
-            return "● Active"
+            return L("运行中")
         case .permissionDenied:
-            return "○ Permission Needed"
+            return L("需要输入监控权限")
         case .noDeviceFound:
-            return "○ No Trackpad"
+            return L("未检测到触控板")
         case .accessibilityDenied:
-            return "○ Accessibility Needed"
+            return L("需要辅助功能权限")
         case .unknown:
-            return "○ Starting..."
+            return L("正在启动...")
         }
     }
 
@@ -162,7 +160,7 @@ class StatusBarManager: NSObject {
         MultitouchManager.shared.checkDevices()
 
         if let statusItem = menu?.item(withTag: 100) {
-            statusItem.title = getStatusText()
+            statusItem.attributedTitle = statusAttributedText()
         }
     }
 
@@ -175,7 +173,7 @@ class StatusBarManager: NSObject {
 
     func updateStatus() {
         if let statusItem = menu?.item(withTag: 100) {
-            statusItem.title = getStatusText()
+            statusItem.attributedTitle = statusAttributedText()
         }
 
         // Update icon appearance
@@ -184,6 +182,36 @@ class StatusBarManager: NSObject {
             button.appearsDisabled = manager.status != .active
         }
     }
+
+    @objc private func handleLanguageChanged() {
+        setupMenu()
+        statusItem?.menu = menu
+        updateStatus()
+    }
+
+    func applyMenuBarIconPreference(enabled: Bool) {
+        let apply = {
+            if enabled {
+                self.setup()
+            } else if let item = self.statusItem {
+                NSStatusBar.system.removeStatusItem(item)
+                self.statusItem = nil
+                self.menu = nil
+            }
+        }
+        if Thread.isMainThread {
+            apply()
+        } else {
+            DispatchQueue.main.async(execute: apply)
+        }
+    }
+
+    private func loadMenuBarImage(named name: String) -> NSImage? {
+        guard let image = NSImage(named: name) else { return nil }
+        image.isTemplate = true
+        image.size = menuIconSize
+        return image
+    }
 }
 
 // MARK: - NSMenuDelegate
@@ -191,11 +219,38 @@ class StatusBarManager: NSObject {
 extension StatusBarManager: NSMenuDelegate {
     func menuWillOpen(_ menu: NSMenu) {
         if let statusItem = menu.item(withTag: 100) {
-            statusItem.title = getStatusText()
+            statusItem.attributedTitle = statusAttributedText()
         }
         if let launchItem = menu.item(withTag: 200) {
             launchItem.state = LaunchAtLoginManager.shared.isEnabled ? .on : .off
         }
+
+    }
+
+    private func statusDotColor() -> NSColor {
+        let manager = MultitouchManager.shared
+        switch manager.status {
+        case .active:
+            return .systemGreen
+        case .permissionDenied, .accessibilityDenied:
+            return .systemOrange
+        case .noDeviceFound:
+            return .systemRed
+        case .unknown:
+            return .systemGray
+        }
+    }
+
+    private func statusAttributedText() -> NSAttributedString {
+        let dotAttributes: [NSAttributedString.Key: Any] = [
+            .foregroundColor: statusDotColor(),
+        ]
+        let textAttributes: [NSAttributedString.Key: Any] = [
+            .foregroundColor: NSColor.secondaryLabelColor,
+        ]
+        let result = NSMutableAttributedString(string: "●", attributes: dotAttributes)
+        result.append(NSAttributedString(string: " " + getStatusText(), attributes: textAttributes))
+        return result
     }
 }
 
@@ -269,11 +324,44 @@ class AppSettings: ObservableObject {
         didSet { UserDefaults.standard.set(swipeSensitivity, forKey: "swipeSensitivity") }
     }
 
+    @Published var showDockIcon: Bool {
+        didSet {
+            UserDefaults.standard.set(showDockIcon, forKey: "showDockIcon")
+            applyDockIconPreference()
+        }
+    }
+
+    @Published var showMenuBarIcon: Bool {
+        didSet {
+            UserDefaults.standard.set(showMenuBarIcon, forKey: "showMenuBarIcon")
+            StatusBarManager.shared.applyMenuBarIconPreference(enabled: showMenuBarIcon)
+        }
+    }
+
     private init() {
         self.swipeSensitivity = UserDefaults.standard.object(forKey: "swipeSensitivity") as? Double ?? 1.0
+        self.showDockIcon = UserDefaults.standard.object(forKey: "showDockIcon") as? Bool ?? true
+        self.showMenuBarIcon = UserDefaults.standard.object(forKey: "showMenuBarIcon") as? Bool ?? true
     }
 
     func resetToDefaults() {
         swipeSensitivity = 1.0
+        showDockIcon = true
+        showMenuBarIcon = true
+    }
+
+    func applyDockIconPreference() {
+        let apply = {
+            let policy: NSApplication.ActivationPolicy = self.showDockIcon ? .regular : .accessory
+            NSApplication.shared.setActivationPolicy(policy)
+            if self.showDockIcon {
+                NSApplication.shared.activate(ignoringOtherApps: true)
+            }
+        }
+        if Thread.isMainThread {
+            apply()
+        } else {
+            DispatchQueue.main.async(execute: apply)
+        }
     }
 }

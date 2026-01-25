@@ -12,7 +12,7 @@ enum RuleScope: Codable, Equatable, Hashable {
     var displayName: String {
         switch self {
         case .global:
-            return "全局"
+            return L("全局")
         case .app(_, let appName):
             return appName
         }
@@ -45,9 +45,9 @@ struct GestureTrigger: Codable, Equatable, Hashable {
 
         var displayName: String {
             switch self {
-            case .swipe: return "滑动"
-            case .tap: return "点击"
-            case .pinch: return "捏合"
+            case .swipe: return L("滑动")
+            case .tap: return L("点击")
+            case .pinch: return L("捏合")
             }
         }
 
@@ -101,10 +101,18 @@ struct GestureTrigger: Codable, Equatable, Hashable {
         switch type {
         case .swipe:
             guard let dir = swipeDirection else { return "" }
-            return "\(fingerCount)指\(dir.displayName)滑"
+            return String(
+                format: L("gesture_swipe_format"),
+                fingerCount,
+                dir.displayName
+            )
         case .tap:
             guard let tap = tapType else { return "" }
-            return "\(fingerCount)指\(tap.displayName)"
+            return String(
+                format: L("gesture_tap_format"),
+                fingerCount,
+                tap.displayName
+            )
         case .pinch:
             guard let pinch = pinchDirection else { return "" }
             return pinch.displayName
@@ -258,7 +266,7 @@ class RuleManager: ObservableObject {
     func duplicateRule(_ rule: GestureRule) {
         var newRule = rule
         newRule = GestureRule(
-            name: (rule.name ?? rule.displayName) + " (副本)",
+            name: (rule.name ?? rule.displayName) + L(" (副本)"),
             trigger: rule.trigger,
             action: rule.action,
             scope: rule.scope,

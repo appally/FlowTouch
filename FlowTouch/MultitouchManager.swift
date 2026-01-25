@@ -47,6 +47,7 @@ class MultitouchManager: ObservableObject {
     private var isRunning = false
     private var eventTap: CFMachPort?
     private var eventTapSource: CFRunLoopSource?
+    private let deviceQueue = DispatchQueue(label: "FlowTouch.DeviceQueue", qos: .userInitiated)
 
     @Published var status: ManagerStatus = .unknown
     @Published var debugLog: String = ""
@@ -205,8 +206,8 @@ class MultitouchManager: ObservableObject {
         // 2. Request Input Monitoring (triggers system dialog)
         requestInputMonitoring()
 
-        // 3. Start Multitouch Engine after a brief delay
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in
+        // 3. Start Multitouch Engine as soon as possible (off main thread)
+        deviceQueue.async { [weak self] in
             self?.checkDevices()
         }
     }

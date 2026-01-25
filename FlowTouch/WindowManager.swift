@@ -717,7 +717,8 @@ class WindowManager {
     /// Get a unique identifier for a window (for restore functionality)
     private func getWindowIdentifier(_ window: AXUIElement) -> String? {
         var numberRef: CFTypeRef?
-        if AXUIElementCopyAttributeValue(window, kAXWindowNumberAttribute as CFString, &numberRef) == .success,
+        let windowNumberAttribute = "AXWindowNumber" as CFString
+        if AXUIElementCopyAttributeValue(window, windowNumberAttribute, &numberRef) == .success,
            let number = numberRef as? NSNumber {
             return "windowNumber:\(number.intValue)"
         }

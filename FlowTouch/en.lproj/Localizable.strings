@@ -1,0 +1,265 @@
+/* Menu & Status */
+"窗口布局" = "Window Layout";
+"登录时启动" = "Launch at Login";
+"显示主窗口" = "Show Window";
+"检查权限" = "Check Permissions";
+"退出 FlowTouch" = "Quit FlowTouch";
+"运行中" = "Active";
+"需要输入监控权限" = "Input Monitoring Required";
+"未检测到触控板" = "No Trackpad Detected";
+"需要辅助功能权限" = "Accessibility Required";
+"正在启动..." = "Starting...";
+"← 左半屏" = "← Left Half";
+"右半屏 →" = "Right Half →";
+"↑ 最大化" = "↑ Maximize";
+"◎ 居中" = "◎ Center";
+"搜索" = "Search";
+"关闭搜索" = "Close Search";
+"搜索规则..." = "Search rules...";
+"FlowTouch 运行中" = "FlowTouch Active";
+"未激活" = "Inactive";
+"FlowTouch - Two-Finger Window Control" = "FlowTouch - Two-Finger Window Control";
+
+/* Settings */
+"设置" = "Settings";
+"语言" = "Language";
+"跟随系统" = "System";
+"简体中文" = "Simplified Chinese";
+"English" = "English";
+"完成" = "Done";
+"启动" = "Startup";
+"程序坞" = "Dock";
+"在程序坞中显示图标" = "Show Dock Icon";
+"在菜单中显示图标" = "Show Menu Bar Icon";
+"手势学习" = "Gesture Learning";
+"试试手势" = "Try Gestures";
+"学习模式" = "Learning Mode";
+"灵敏度" = "Sensitivity";
+"滑动阈值" = "Swipe Threshold";
+"权限状态" = "Permissions";
+"输入监控" = "Input Monitoring";
+"已授权" = "Authorized";
+"授权" = "Grant";
+"辅助功能" = "Accessibility";
+"系统手势冲突" = "System Gesture Conflicts";
+"手势冲突" = "Gesture Conflict";
+"打开触控板设置" = "Open Trackpad Settings";
+"规则管理" = "Rule Management";
+"当前规则数" = "Rules";
+"条" = "items";
+"导出规则" = "Export Rules";
+"导入规则" = "Import Rules";
+"数据" = "Data";
+"重置规则为默认" = "Reset Rules to Default";
+"导出成功" = "Exported";
+"规则已导出到桌面" = "Rules exported to Desktop";
+"导入失败" = "Import Failed";
+"无效的规则文件格式" = "Invalid rules file format";
+"导出失败" = "Export Failed";
+"读取文件失败" = "Read Failed";
+"选择文件失败" = "Selection Failed";
+"system_gesture_conflict_format" = "Possible conflict between system “%@” and FlowTouch “%@”.";
+"确定要重置所有规则吗？" = "Reset all rules?";
+"这将删除所有自定义规则。" = "This will delete all custom rules.";
+"重置" = "Reset";
+"取消" = "Cancel";
+"确定" = "OK";
+
+/* Welcome */
+"Welcome to FlowTouch" = "Welcome to FlowTouch";
+"Control windows with trackpad gestures" = "Control windows with trackpad gestures";
+"Choose a starting configuration:" = "Choose a starting configuration:";
+"Quick Start" = "Quick Start";
+"3 gestures: Left, Right, Maximize" = "3 gestures: Left, Right, Maximize";
+"Full Setup" = "Full Setup";
+"8 directions: All window positions" = "8 directions: All window positions";
+"Start from scratch" = "Start from scratch";
+"Uses 3-finger gestures to avoid conflicts with system scrolling" = "Uses 3-finger gestures to avoid conflicts with system scrolling";
+
+/* No Device / Init */
+"未找到触控板" = "No Trackpad Found";
+"请连接 Magic Trackpad 或使用 MacBook 内置触控板" = "Connect a Magic Trackpad or use the built‑in trackpad";
+"正在检测..." = "Checking...";
+"重新检测" = "Retry";
+"可能是权限问题" = "Might be a permission issue";
+"检查输入监控权限" = "Check Input Monitoring Permission";
+
+/* Permission Guidance */
+"Permissions Required" = "Permissions Required";
+"FlowTouch needs system permissions to monitor trackpad input and control windows." = "FlowTouch needs permissions to monitor trackpad input and control windows.";
+"Input Monitoring" = "Input Monitoring";
+"Required to detect trackpad gestures" = "Required to detect trackpad gestures";
+"Accessibility" = "Accessibility";
+"Required to move and resize windows" = "Required to move and resize windows";
+"Setup Instructions" = "Setup Instructions";
+"Open System Settings > Privacy & Security" = "Open System Settings > Privacy & Security";
+"Select 'Input Monitoring' and enable FlowTouch" = "Select \"Input Monitoring\" and enable FlowTouch";
+"Select 'Accessibility' and enable FlowTouch" = "Select \"Accessibility\" and enable FlowTouch";
+"Restart the app if needed" = "Restart the app if needed";
+"Developer Note" = "Developer Note";
+"Rebuilding in Xcode invalidates permissions. Remove the app from the list and re-add it after each rebuild." = "Rebuilding in Xcode invalidates permissions. Remove the app from the list and re‑add it after each rebuild.";
+"Ensure a Magic Trackpad is connected or you're using a MacBook with built-in trackpad." = "Ensure a Magic Trackpad is connected or you’re using a MacBook with a built‑in trackpad.";
+"Retry" = "Retry";
+"Request Accessibility" = "Request Accessibility";
+
+/* Action Selection */
+"选择操作" = "Select Action";
+"选择手势触发后执行的窗口操作" = "Choose the action to perform";
+"窗口控制" = "Window Control";
+"屏幕与空间" = "Displays & Spaces";
+"桌面与系统" = "Desktop & System";
+"应用程序" = "Applications";
+"标签页" = "Tabs";
+"媒体控制" = "Media";
+"截图" = "Screenshot";
+"自定义" = "Custom";
+
+/* Rules */
+"规则" = "Rules";
+"所有规则" = "All";
+"已启用" = "Enabled";
+"已停用" = "Disabled";
+"添加规则" = "Add Rule";
+"编辑" = "Edit";
+"复制" = "Duplicate";
+"删除" = "Delete";
+" (副本)" = " (Copy)";
+"全局" = "Global";
+"其他" = "Other";
+
+/* Action Names */
+"左半屏" = "Left Half";
+"右半屏" = "Right Half";
+"上半屏" = "Top Half";
+"下半屏" = "Bottom Half";
+"左上角" = "Top Left";
+"右上角" = "Top Right";
+"左下角" = "Bottom Left";
+"右下角" = "Bottom Right";
+"最大化" = "Maximize";
+"居中" = "Center";
+"还原" = "Restore";
+"最小化" = "Minimize";
+"关闭" = "Close";
+"全屏" = "Fullscreen";
+"撤销" = "Undo";
+"垂直最大化" = "Maximize Height";
+"水平最大化" = "Maximize Width";
+"全部最小化" = "Minimize All";
+"恢复全部" = "Restore All";
+"移至下个屏幕" = "Move to Next Screen";
+"移至上个屏幕" = "Move to Previous Screen";
+"移至下个空间" = "Move to Next Space";
+"移至上个空间" = "Move to Previous Space";
+"切换左空间" = "Switch to Left Space";
+"切换右空间" = "Switch to Right Space";
+"调度中心" = "Mission Control";
+"显示桌面" = "Show Desktop";
+"应用窗口" = "App Exposé";
+"启动台" = "Launchpad";
+"聚焦搜索" = "Spotlight";
+"锁定屏幕" = "Lock Screen";
+"屏幕保护" = "Start Screensaver";
+"退出应用" = "Quit App";
+"隐藏应用" = "Hide App";
+"隐藏其他" = "Hide Others";
+"切换应用" = "Switch App";
+"上个应用" = "Previous App";
+"新建标签页" = "New Tab";
+"关闭标签页" = "Close Tab";
+"下一个标签页" = "Next Tab";
+"上一个标签页" = "Previous Tab";
+"播放/暂停" = "Play/Pause";
+"下一曲" = "Next Track";
+"上一曲" = "Previous Track";
+"音量增加" = "Volume Up";
+"音量减少" = "Volume Down";
+"静音" = "Mute";
+"亮度增加" = "Brightness Up";
+"亮度减少" = "Brightness Down";
+"截取全屏" = "Screenshot";
+"截取区域" = "Screenshot Area";
+"截取窗口" = "Screenshot Window";
+"自定义快捷键" = "Custom Shortcut";
+"未设置" = "Not Set";
+
+/* Short Names */
+"左" = "Left";
+"右" = "Right";
+"上" = "Up";
+"下" = "Down";
+"左上" = "Up-Left";
+"右上" = "Up-Right";
+"左下" = "Down-Left";
+"右下" = "Down-Right";
+"↕最大" = "Max Height";
+"↔最大" = "Max Width";
+"全最小" = "Min All";
+"→屏幕" = "→Screen";
+"←屏幕" = "←Screen";
+"→空间" = "→Space";
+"←空间" = "←Space";
+"空间←" = "Space ←";
+"空间→" = "Space →";
+"调度" = "Mission";
+"桌面" = "Desktop";
+"窗口" = "Windows";
+"搜索" = "Search";
+"锁屏" = "Lock";
+"屏保" = "Saver";
+"退出" = "Quit";
+"隐藏" = "Hide";
+"上个" = "Previous";
+"新标签" = "New Tab";
+"关标签" = "Close Tab";
+"下标签" = "Next Tab";
+"上标签" = "Prev Tab";
+"播放" = "Play";
+"音量+" = "Vol+";
+"音量-" = "Vol-";
+"亮度+" = "Bright+";
+"亮度-" = "Bright-";
+"截全屏" = "Full";
+"截区域" = "Area";
+"截窗口" = "Window";
+"快捷键" = "Shortcut";
+"添加" = "Add";
+
+/* Gesture Types */
+"滑动" = "Swipe";
+"点击" = "Tap";
+"捏合" = "Pinch";
+"在触控板上滑动手指" = "Swipe fingers on the trackpad";
+"快速点击手指" = "Quickly tap with fingers";
+"捏合或张开手指" = "Pinch in or out";
+
+/* Tap Types */
+"单击" = "Single Tap";
+"双击" = "Double Tap";
+"三击" = "Triple Tap";
+"1次点击" = "1 Tap";
+"2次点击" = "2 Taps";
+"3次点击" = "3 Taps";
+
+/* Pinch */
+"张开" = "Pinch Out";
+"Pinch In" = "Pinch In";
+"Pinch Out" = "Pinch Out";
+
+/* Misc */
+"Not configured" = "Not configured";
+"gesture_swipe_format" = "%d-finger %@ swipe";
+"gesture_tap_format" = "%d-finger %@";
+"disable_fingers_format" = "Disable %d fingers";
+"enable_fingers_format" = "Enable %d fingers";
+"Change Action" = "Change Action";
+"Set Action" = "Set Action";
+"Click to change • Right-click to test" = "Click to change • Right-click to test";
+"Click to set action" = "Click to set action";
+"Test: %@" = "Test: %@";
+"手势学习模式" = "Gesture Learning";
+"在触控板上尝试手势，查看识别结果" = "Try gestures on the trackpad to see recognition results";
+"学习模式已启用 - 手势不会执行动作" = "Learning mode is on — gestures won’t execute actions";
+"清空记录" = "Clear History";
+"在触控板上尝试手势" = "Try gestures on the trackpad";
+"支持滑动、点击、捏合手势" = "Supports swipe, tap, and pinch";

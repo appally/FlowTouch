@@ -19,6 +19,7 @@ class MainWindowController: ObservableObject {
     @Published var shouldShowWindow = false
 
     private var observer: NSObjectProtocol?
+    private var closeObserver: NSObjectProtocol?
     private var fallbackWindow: NSWindow?
 
     init() {
@@ -30,17 +31,30 @@ class MainWindowController: ObservableObject {
         ) { [weak self] _ in
             self?.showWindow()
         }
+
+        closeObserver = NotificationCenter.default.addObserver(
+            forName: NSWindow.willCloseNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] notification in
+            guard let window = notification.object as? NSWindow else { return }
+            self?.handleWindowClosed(window)
+        }
     }
 
     deinit {
         if let observer = observer {
             NotificationCenter.default.removeObserver(observer)
         }
+        if let closeObserver = closeObserver {
+            NotificationCenter.default.removeObserver(closeObserver)
+        }
     }
 
     func showWindow() {
-        // First, ensure we're in regular mode to show dock icon and allow windows
-        NSApplication.shared.setActivationPolicy(.regular)
+        // Respect user preference for Dock icon visibility
+        let policy: NSApplication.ActivationPolicy = AppSettings.shared.showDockIcon ? .regular : .accessory
+        NSApplication.shared.setActivationPolicy(policy)
         NSApplication.shared.activate(ignoringOtherApps: true)
 
         // Try to find and show existing window first
@@ -57,18 +71,45 @@ class MainWindowController: ObservableObject {
         // Find the main content window (not status bar, not panels)
         for window in NSApplication.shared.windows {
             // Skip status bar windows and panels
-            if window.className == "NSStatusBarWindow" { continue }
-            if window is NSPanel { continue }
+            guard isMainContentWindow(window) else { continue }
 
-            // Check if this is our main content window (has NSHostingView which hosts SwiftUI)
-            if window.contentView?.subviews.first(where: { String(describing: type(of: $0)).contains("NSHostingView") }) != nil {
-                window.makeKeyAndOrderFront(nil)
-                print("[MainWindowController] Brought existing window to front: \(window)")
-                return true
-            }
+            window.collectionBehavior.insert(.moveToActiveSpace)
+            window.makeKeyAndOrderFront(nil)
+            window.orderFrontRegardless()
+            NSApplication.shared.activate(ignoringOtherApps: true)
+            print("[MainWindowController] Brought existing window to front: \(window)")
+            return true
         }
 
         return false
+    }
+
+    private func isMainContentWindow(_ window: NSWindow) -> Bool {
+        if window.className == "NSStatusBarWindow" { return false }
+        if window is NSPanel { return false }
+        return window.contentView?.subviews.first(where: { String(describing: type(of: $0)).contains("NSHostingView") }) != nil
+    }
+
+    private func hasVisibleMainWindow() -> Bool {
+        return NSApplication.shared.windows.contains { window in
+            guard isMainContentWindow(window) else { return false }
+            return window.isVisible || window.isMiniaturized
+        }
+    }
+
+    private func handleWindowClosed(_ window: NSWindow) {
+        if fallbackWindow === window {
+            fallbackWindow = nil
+        }
+
+        guard isMainContentWindow(window) else { return }
+
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else { return }
+            if !self.hasVisibleMainWindow() {
+                NSApplication.shared.setActivationPolicy(.accessory)
+            }
+        }
     }
 
     private func openOrCreateFallbackWindow() {
@@ -76,24 +117,31 @@ class MainWindowController: ObservableObject {
             guard let self = self else { return }
 
             if let window = self.fallbackWindow {
+                window.collectionBehavior.insert(.moveToActiveSpace)
                 window.makeKeyAndOrderFront(nil)
+                window.orderFrontRegardless()
+                NSApplication.shared.activate(ignoringOtherApps: true)
                 return
             }
 
             let hostingView = NSHostingView(rootView: ContentView())
             let window = NSWindow(
                 contentRect: NSRect(x: 0, y: 0, width: 800, height: 600),
-                styleMask: [.titled, .closable, .miniaturizable, .resizable],
+                styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
                 backing: .buffered,
                 defer: false
             )
             window.titleVisibility = .hidden
             window.titlebarAppearsTransparent = true
+            window.toolbarStyle = .unifiedCompact
             window.isReleasedWhenClosed = false
             window.contentMinSize = NSSize(width: 800, height: 600)
+            window.collectionBehavior.insert(.moveToActiveSpace)
             window.contentView = hostingView
             window.center()
             window.makeKeyAndOrderFront(nil)
+            window.orderFrontRegardless()
+            NSApplication.shared.activate(ignoringOtherApps: true)
 
             self.fallbackWindow = window
         }
@@ -108,23 +156,28 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         print("[FlowTouch] Application launched")
 
         // Setup menu bar icon
-        StatusBarManager.shared.setup()
+        if AppSettings.shared.showMenuBarIcon {
+            StatusBarManager.shared.setup()
+        }
 
         // Determine activation policy based on launch context
+        let showDockIcon = AppSettings.shared.showDockIcon
         if isLaunchedAtLogin() {
             NSApplication.shared.setActivationPolicy(.accessory)
             print("[FlowTouch] Launched at login - running in background")
         } else {
-            NSApplication.shared.setActivationPolicy(.regular)
-            NSApplication.shared.activate(ignoringOtherApps: true)
+            NSApplication.shared.setActivationPolicy(showDockIcon ? .regular : .accessory)
+            if showDockIcon {
+                NSApplication.shared.activate(ignoringOtherApps: true)
+            }
             print("[FlowTouch] Normal launch - showing window")
         }
 
         // Setup HUD overlay
         FeedbackHUD.shared.setup()
 
-        // Start multitouch engine after a brief delay
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+        // Start multitouch engine quickly to reduce perceived startup delay
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
             MultitouchManager.shared.start()
         }
 
