@@ -784,6 +784,8 @@ struct GestureConfiguration: Codable, Equatable {
         case 4: fourFingerTap = mapping
         default: break
         }
+        tapEnabled = true
+        enabledFingerCounts.insert(fingerCount)
     }
 
     // Count configured gestures for a type

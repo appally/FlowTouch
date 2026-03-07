@@ -179,7 +179,10 @@ class GestureEngine {
     private var isTapEnabled: Bool {
         // Check if any tap rules exist
         let hasTapRules = ruleManager.enabledRules.contains { $0.trigger.type == .tap }
-        return hasTapRules || config.tapEnabled
+        let hasConfiguredTap = (config.twoFingerTap.configuredCount +
+                                config.threeFingerTap.configuredCount +
+                                config.fourFingerTap.configuredCount) > 0
+        return hasTapRules || config.tapEnabled || hasConfiguredTap
     }
 
     /// Check if pinch gestures are enabled (via rules or legacy config)
@@ -191,12 +194,25 @@ class GestureEngine {
     /// Check if finger count has any enabled rules
     private func isFingerCountEnabled(_ count: Int) -> Bool {
         let hasRulesForCount = ruleManager.enabledRules.contains { $0.trigger.fingerCount == count }
-        return hasRulesForCount || config.enabledFingerCounts.contains(count)
+        if hasRulesForCount { return true }
+        if config.enabledFingerCounts.contains(count) { return true }
+        if config.swipeMapping(for: count).configuredCount > 0 { return true }
+        if config.tapMapping(for: count).configuredCount > 0 { return true }
+        if count == 2 && isPinchEnabled { return true }
+        return false
     }
 
     private func isSwipeEnabled(for count: Int) -> Bool {
         let hasSwipeRules = ruleManager.enabledRules.contains { $0.trigger.type == .swipe && $0.trigger.fingerCount == count }
         return hasSwipeRules || config.swipeMapping(for: count).configuredCount > 0
+    }
+
+    private func cancelTapSequence() {
+        tapTimer?.cancel()
+        tapTimer = nil
+        tapCount = 0
+        lastTapTime = 0
+        lastTapFingerCount = 0
     }
 
     // MARK: - Process Frame
@@ -235,8 +251,10 @@ class GestureEngine {
 
         fingerCount = touches.count
 
-        // Check if this finger count is enabled
-        guard fingerCount > 0 && isFingerCountEnabled(fingerCount) else {
+        // Check if this finger count is enabled (tolerate brief count drops)
+        let currentEnabled = isFingerCountEnabled(fingerCount)
+        let peakEnabled = peakTouchingFingers > 0 && isFingerCountEnabled(peakTouchingFingers)
+        guard fingerCount > 0 && (currentEnabled || peakEnabled) else {
             // Silently ignore - let system handle it
             if state != .possible {
                 resetState()
@@ -308,6 +326,7 @@ class GestureEngine {
             let pinchRatio = currentDistance / initialPinchDistance
 
             if pinchRatio < 0.80 || pinchRatio > 1.25 {
+                cancelTapSequence()
                 state = .began
                 isTapCandidate = false  // Not a tap - it's a pinch
                 #if DEBUG
@@ -320,6 +339,7 @@ class GestureEngine {
         // Check for movement threshold (favor tap if swipe isn't configured)
         let swipeStartThreshold = isTapCandidate ? max(gestureStartThreshold, tapMovementThreshold) : gestureStartThreshold
         if isSwipeEnabled(for: fingerCount) && distance > swipeStartThreshold {
+            cancelTapSequence()
             state = .began
             isTapCandidate = false  // Not a tap - it's a swipe
             lockedDirection = determineSwipeDirection(dx: dx, dy: dy)
@@ -368,6 +388,7 @@ class GestureEngine {
 
             // Pinch in
             if pinchRatio < Float(config.pinchInThreshold) {
+                cancelTapSequence()
                 let action = getPinchAction(direction: .pinchIn)
                 #if DEBUG
                 print("[GestureEngine] Pinch in triggered, ratio: \(pinchRatio), action: \(action)")
@@ -378,6 +399,7 @@ class GestureEngine {
 
             // Pinch out
             if pinchRatio > Float(config.pinchOutThreshold) {
+                cancelTapSequence()
                 let action = getPinchAction(direction: .pinchOut)
                 #if DEBUG
                 print("[GestureEngine] Pinch out triggered, ratio: \(pinchRatio), action: \(action)")
