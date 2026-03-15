@@ -114,6 +114,8 @@ class StatusBarManager: NSObject {
         switch manager.status {
         case .active:
             return L("运行中")
+        case .awaitingTouch:
+            return L("等待首次触摸")
         case .permissionDenied:
             return L("需要输入监控权限")
         case .noDeviceFound:
@@ -232,6 +234,8 @@ extension StatusBarManager: NSMenuDelegate {
         switch manager.status {
         case .active:
             return .systemGreen
+        case .awaitingTouch:
+            return .systemYellow
         case .permissionDenied, .accessibilityDenied:
             return .systemOrange
         case .noDeviceFound:

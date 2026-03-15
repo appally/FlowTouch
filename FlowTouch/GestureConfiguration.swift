@@ -350,6 +350,15 @@ enum WindowAction: String, Codable, CaseIterable, Identifiable {
         }
     }
 
+    var isAvailableInUI: Bool {
+        switch self {
+        case .moveToNextSpace, .moveToPrevSpace:
+            return false
+        default:
+            return true
+        }
+    }
+
     /// Group for UI organization
     var category: ActionCategory {
         switch self {
@@ -445,7 +454,9 @@ enum WindowAction: String, Codable, CaseIterable, Identifiable {
 
         /// Actions in this category (excluding none)
         var actions: [WindowAction] {
-            WindowAction.allCases.filter { $0.category == self && $0 != .none }
+            WindowAction.allCases.filter {
+                $0.category == self && $0 != .none && $0.isAvailableInUI
+            }
         }
     }
 }
@@ -883,6 +894,22 @@ class ConfigurationManager: ObservableObject {
 
     func applyFullPreset() {
         config = .fullPreset
+    }
+
+    /// Clear legacy gesture mappings while preserving sensitivity settings.
+    func clearLegacyGestureMappings() {
+        var clearedConfig = config
+        clearedConfig.enabledFingerCounts = GestureConfiguration.default.enabledFingerCounts
+        clearedConfig.twoFingerSwipe = SwipeMapping()
+        clearedConfig.threeFingerSwipe = SwipeMapping()
+        clearedConfig.fourFingerSwipe = SwipeMapping()
+        clearedConfig.twoFingerTap = TapMapping()
+        clearedConfig.threeFingerTap = TapMapping()
+        clearedConfig.fourFingerTap = TapMapping()
+        clearedConfig.pinchGestures = PinchMapping()
+        clearedConfig.pinchEnabled = false
+        clearedConfig.tapEnabled = false
+        config = clearedConfig
     }
 
     /// Check if this is a fresh install (no gestures configured)

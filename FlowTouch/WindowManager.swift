@@ -251,22 +251,9 @@ class WindowManager {
             return false
         }
 
-        // Find which screen the window is currently on
-        let windowCenter = CGPoint(
-            x: currentFrame.origin.x + currentFrame.width / 2,
-            y: currentFrame.origin.y + currentFrame.height / 2
-        )
-
-        // Convert to Cocoa coordinates to find the screen
-        let cocoaY = ScreenCoordinates.primaryScreenHeight - windowCenter.y
-        let cocoaCenter = CGPoint(x: windowCenter.x, y: cocoaY)
-
-        var currentScreenIndex = 0
-        for (index, screen) in screens.enumerated() {
-            if screen.frame.contains(cocoaCenter) {
-                currentScreenIndex = index
-                break
-            }
+        let currentScreen = screenContaining(windowFrame: currentFrame) ?? screens[0]
+        guard let currentScreenIndex = screens.firstIndex(of: currentScreen) else {
+            return false
         }
 
         // Calculate target screen index
@@ -281,7 +268,7 @@ class WindowManager {
         let targetVisibleFrame = ScreenCoordinates.visibleFrameInAXCoordinates(for: targetScreen)
 
         // Keep relative position and size if possible
-        let currentVisibleFrame = ScreenCoordinates.visibleFrameInAXCoordinates(for: screens[currentScreenIndex])
+        let currentVisibleFrame = ScreenCoordinates.visibleFrameInAXCoordinates(for: currentScreen)
 
         // Calculate relative position (0-1 range)
         let relativeX = (currentFrame.origin.x - currentVisibleFrame.origin.x) / currentVisibleFrame.width
@@ -331,8 +318,12 @@ class WindowManager {
         }
 
         guard let axWindow = getFocusedWindow(),
-              let currentFrame = getWindowFrame(axWindow),
-              let screen = getScreenWithMouse() else {
+              let currentFrame = getWindowFrame(axWindow) else {
+            return false
+        }
+
+        let screen = screenContaining(windowFrame: currentFrame) ?? getScreenWithMouse()
+        guard let screen else {
             return false
         }
 
@@ -357,8 +348,12 @@ class WindowManager {
         }
 
         guard let axWindow = getFocusedWindow(),
-              let currentFrame = getWindowFrame(axWindow),
-              let screen = getScreenWithMouse() else {
+              let currentFrame = getWindowFrame(axWindow) else {
+            return false
+        }
+
+        let screen = screenContaining(windowFrame: currentFrame) ?? getScreenWithMouse()
+        guard let screen else {
             return false
         }
 
@@ -425,15 +420,16 @@ class WindowManager {
         }
 
         // Safe cast to AXUIElement
-        guard CFGetTypeID(window) == AXUIElementGetTypeID() else {
+        guard let axWindow = asAXUIElement(window) else {
             print("[WindowManager] ERROR: Window reference is not an AXUIElement")
             return false
         }
-        let axWindow = window as! AXUIElement
 
-        // Get current window frame for restore functionality
+        // Get current window frame for restore functionality and screen selection
+        let currentFrame = getWindowFrame(axWindow)
+
         if direction != .restore {
-            if let currentFrame = getWindowFrame(axWindow) {
+            if let currentFrame {
                 let windowId = getWindowIdentifier(axWindow) ?? "default"
                 if previousFrames[pid] == nil {
                     previousFrames[pid] = [:]
@@ -445,8 +441,8 @@ class WindowManager {
             }
         }
 
-        // Get the screen where the mouse is located
-        guard let screen = getScreenWithMouse() else {
+        // Prefer the screen containing the focused window; fall back to mouse location.
+        guard let screen = currentFrame.flatMap(screenContaining(windowFrame:)) ?? getScreenWithMouse() else {
             print("[WindowManager] ERROR: Could not determine current screen")
             return false
         }
@@ -494,7 +490,12 @@ class WindowManager {
             return false
         }
 
-        let pressResult = AXUIElementPerformAction(closeButton as! AXUIElement, kAXPressAction as CFString)
+        guard let closeButtonElement = asAXUIElement(closeButton) else {
+            print("[WindowManager] ERROR: Close button reference is not an AXUIElement")
+            return false
+        }
+
+        let pressResult = AXUIElementPerformAction(closeButtonElement, kAXPressAction as CFString)
 
         if pressResult == .success {
             #if DEBUG
@@ -538,7 +539,12 @@ class WindowManager {
             return false
         }
 
-        let pressResult = AXUIElementPerformAction(minimizeButton as! AXUIElement, kAXPressAction as CFString)
+        guard let minimizeButtonElement = asAXUIElement(minimizeButton) else {
+            print("[WindowManager] ERROR: Minimize button reference is not an AXUIElement")
+            return false
+        }
+
+        let pressResult = AXUIElementPerformAction(minimizeButtonElement, kAXPressAction as CFString)
 
         if pressResult == .success {
             #if DEBUG
@@ -574,7 +580,12 @@ class WindowManager {
             let zoomResult = AXUIElementCopyAttributeValue(axWindow, kAXZoomButtonAttribute as CFString, &zoomButtonRef)
 
             if zoomResult == .success, let zoomButton = zoomButtonRef {
-                let pressResult = AXUIElementPerformAction(zoomButton as! AXUIElement, kAXPressAction as CFString)
+                guard let zoomButtonElement = asAXUIElement(zoomButton) else {
+                    print("[WindowManager] ERROR: Zoom button reference is not an AXUIElement")
+                    return false
+                }
+
+                let pressResult = AXUIElementPerformAction(zoomButtonElement, kAXPressAction as CFString)
                 if pressResult == .success {
                     #if DEBUG
                     print("[WindowManager] Fullscreen toggled via zoom button")
@@ -587,7 +598,12 @@ class WindowManager {
             return false
         }
 
-        let pressResult = AXUIElementPerformAction(fullscreenButton as! AXUIElement, kAXPressAction as CFString)
+        guard let fullscreenButtonElement = asAXUIElement(fullscreenButton) else {
+            print("[WindowManager] ERROR: Fullscreen button reference is not an AXUIElement")
+            return false
+        }
+
+        let pressResult = AXUIElementPerformAction(fullscreenButtonElement, kAXPressAction as CFString)
 
         if pressResult == .success {
             #if DEBUG
@@ -666,11 +682,18 @@ class WindowManager {
             return nil
         }
 
+        guard let positionValue = asAXValue(positionRef),
+              let sizeValue = asAXValue(sizeRef) else {
+            return nil
+        }
+
         var position = CGPoint.zero
         var size = CGSize.zero
 
-        AXValueGetValue(positionRef as! AXValue, .cgPoint, &position)
-        AXValueGetValue(sizeRef as! AXValue, .cgSize, &size)
+        guard AXValueGetValue(positionValue, .cgPoint, &position),
+              AXValueGetValue(sizeValue, .cgSize, &size) else {
+            return nil
+        }
 
         return CGRect(origin: position, size: size)
     }
@@ -736,6 +759,39 @@ class WindowManager {
         return NSScreen.screens.first { NSMouseInRect(mouseLoc, $0.frame, false) }
     }
 
+    /// Find the screen that contains the largest portion of the window.
+    private func screenContaining(windowFrame: CGRect) -> NSScreen? {
+        let screens = NSScreen.screens
+        guard !screens.isEmpty else { return nil }
+
+        var bestScreen: NSScreen?
+        var bestArea: CGFloat = 0
+
+        for screen in screens {
+            let screenFrame = ScreenCoordinates.cocoaToAccessibility(screen.frame)
+            let intersection = windowFrame.intersection(screenFrame)
+            let area = intersection.isNull ? 0 : intersection.width * intersection.height
+
+            if area > bestArea {
+                bestArea = area
+                bestScreen = screen
+            }
+        }
+
+        if let bestScreen {
+            return bestScreen
+        }
+
+        let windowCenter = CGPoint(
+            x: windowFrame.midX,
+            y: windowFrame.midY
+        )
+
+        return screens.first {
+            ScreenCoordinates.cocoaToAccessibility($0.frame).contains(windowCenter)
+        }
+    }
+
     /// Get the currently focused window
     private func getFocusedWindow() -> AXUIElement? {
         guard let frontApp = NSWorkspace.shared.frontmostApplication else {
@@ -752,10 +808,20 @@ class WindowManager {
             return nil
         }
 
-        guard CFGetTypeID(window) == AXUIElementGetTypeID() else {
+        return asAXUIElement(window)
+    }
+
+    private func asAXUIElement(_ value: CFTypeRef?) -> AXUIElement? {
+        guard let value, CFGetTypeID(value) == AXUIElementGetTypeID() else {
             return nil
         }
+        return unsafeBitCast(value, to: AXUIElement.self)
+    }
 
-        return (window as! AXUIElement)
+    private func asAXValue(_ value: CFTypeRef?) -> AXValue? {
+        guard let value, CFGetTypeID(value) == AXValueGetTypeID() else {
+            return nil
+        }
+        return unsafeBitCast(value, to: AXValue.self)
     }
 }

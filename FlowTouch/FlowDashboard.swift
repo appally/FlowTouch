@@ -147,19 +147,26 @@ struct SidebarView: View {
     // MARK: - Status Pill
     private var statusPill: some View {
         let isActive = multitouchManager.status == .active
+        let isAwaitingTouch = multitouchManager.status == .awaitingTouch
+        let statusText = isActive
+            ? "FlowTouch 运行中"
+            : (isAwaitingTouch ? "等待首次触摸" : "未激活")
+        let statusIcon = isActive ? "bolt.fill" : (isAwaitingTouch ? "hand.tap.fill" : "bolt.slash.fill")
+        let statusIconColor = isActive ? Color.green.opacity(0.8) : (isAwaitingTouch ? Color.orange.opacity(0.8) : .secondary)
+
         return HStack(spacing: 8) {
             BreathingIndicator(isActive: isActive)
                 .frame(width: 6, height: 6)
 
-            Text(LocalizedStringKey(isActive ? "FlowTouch 运行中" : "未激活"))
+            Text(LocalizedStringKey(statusText))
                 .font(.system(size: 11, weight: .medium))
                 .foregroundColor(.secondary)
             
             Spacer()
             
-            Image(systemName: isActive ? "bolt.fill" : "bolt.slash.fill")
+            Image(systemName: statusIcon)
                 .font(.system(size: 10))
-                .foregroundColor(isActive ? .green.opacity(0.8) : .secondary)
+                .foregroundColor(statusIconColor)
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
@@ -501,6 +508,13 @@ struct AddRuleSheet: View {
             return .pinch(direction: pinchDirection)
         }
     }
+
+    private var selectedScope: RuleScope {
+        guard scopeType == .app, let app = selectedApp else {
+            return .global
+        }
+        return .app(bundleId: app.id, appName: app.name)
+    }
     
     var body: some View {
         NavigationStack {
@@ -693,10 +707,7 @@ struct AddRuleSheet: View {
 
     private func checkForConflict() {
         let trigger = currentTrigger
-        let scope: RuleScope = (scopeType == .app && selectedApp != nil) ? 
-            .app(bundleId: selectedApp!.id, appName: selectedApp!.name) : .global
-            
-        conflictingRule = ruleManager.checkConflict(trigger: trigger, scope: scope)
+        conflictingRule = ruleManager.checkConflict(trigger: trigger, scope: selectedScope)
     }
     
     private func createRule() {
@@ -706,14 +717,12 @@ struct AddRuleSheet: View {
         }
         
         let ruleId = UUID()
-        let scope: RuleScope = (scopeType == .app && selectedApp != nil) ? 
-            .app(bundleId: selectedApp!.id, appName: selectedApp!.name) : .global
         
         let rule = GestureRule(
             id: ruleId,
             trigger: currentTrigger,
             action: selectedAction,
-            scope: scope
+            scope: selectedScope
         )
         
         // Migrate shortcut if needed
@@ -766,6 +775,13 @@ struct EditRuleSheet: View {
             _scopeType = State(initialValue: .app)
             _selectedApp = State(initialValue: RunningApp(id: bundleId, name: appName, icon: nil))
         }
+    }
+
+    private var selectedScope: RuleScope {
+        guard scopeType == .app, let app = selectedApp else {
+            return .global
+        }
+        return .app(bundleId: app.id, appName: app.name)
     }
     
     var body: some View {
@@ -992,11 +1008,8 @@ struct EditRuleSheet: View {
         case .pinch:
             trigger = .pinch(direction: pinchDirection)
         }
-        
-        let scope: RuleScope = (scopeType == .app && selectedApp != nil) ? 
-            .app(bundleId: selectedApp!.id, appName: selectedApp!.name) : .global
-            
-        conflictingRule = ruleManager.checkConflict(trigger: trigger, scope: scope, excludingRuleId: rule.id)
+
+        conflictingRule = ruleManager.checkConflict(trigger: trigger, scope: selectedScope, excludingRuleId: rule.id)
     }
     
     private func saveRule() {
@@ -1018,10 +1031,7 @@ struct EditRuleSheet: View {
         
         updatedRule.trigger = newTrigger
         updatedRule.action = selectedAction
-        
-        let scope: RuleScope = (scopeType == .app && selectedApp != nil) ?
-            .app(bundleId: selectedApp!.id, appName: selectedApp!.name) : .global
-        updatedRule.scope = scope
+        updatedRule.scope = selectedScope
         
         ruleManager.updateRule(updatedRule)
         onDismiss()
@@ -1259,6 +1269,7 @@ struct ShortcutRecorderView: View {
     @State private var isRecording = false
     @State private var currentShortcut: CustomShortcut?
     @State private var displayString: String = "未设置"
+    @State private var keyMonitor: Any?
 
     var body: some View {
         HStack {
@@ -1309,6 +1320,9 @@ struct ShortcutRecorderView: View {
         .onAppear {
             loadShortcut()
         }
+        .onDisappear {
+            cleanupMonitor()
+        }
     }
 
     private func loadShortcut() {
@@ -1319,10 +1333,11 @@ struct ShortcutRecorderView: View {
     }
 
     private func startRecording() {
+        cleanupMonitor()
         isRecording = true
         displayString = "输入中..."
         
-        NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
+        keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
             if self.isRecording {
                 // Convert NSEvent modifier flags to Carbon modifier format
                 var carbonModifiers: UInt32 = 0
@@ -1351,6 +1366,7 @@ struct ShortcutRecorderView: View {
                     self.displayString = shortcut.displayString
                     CustomShortcutManager.shared.setShortcut(shortcut, for: self.ruleId)
                     self.isRecording = false
+                    self.cleanupMonitor()
                 }
                 return nil
             }
@@ -1360,6 +1376,7 @@ struct ShortcutRecorderView: View {
 
     private func stopRecording() {
         isRecording = false
+        cleanupMonitor()
         if currentShortcut == nil {
             displayString = "未设置"
         }
@@ -1369,6 +1386,13 @@ struct ShortcutRecorderView: View {
         currentShortcut = nil
         displayString = "未设置"
         CustomShortcutManager.shared.removeShortcut(for: ruleId)
+    }
+
+    private func cleanupMonitor() {
+        if let keyMonitor {
+            NSEvent.removeMonitor(keyMonitor)
+            self.keyMonitor = nil
+        }
     }
 }
 

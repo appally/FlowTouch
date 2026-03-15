@@ -7,6 +7,7 @@ import ApplicationServices
 
 enum ManagerStatus: Equatable {
     case unknown
+    case awaitingTouch
     case active
     case permissionDenied
     case noDeviceFound
@@ -48,6 +49,8 @@ class MultitouchManager: ObservableObject {
     private var eventTap: CFMachPort?
     private var eventTapSource: CFRunLoopSource?
     private let deviceQueue = DispatchQueue(label: "FlowTouch.DeviceQueue", qos: .userInitiated)
+    private let callbackStateQueue = DispatchQueue(label: "FlowTouch.CallbackState", qos: .userInitiated)
+    private var hasReceivedTouchCallback = false
 
     @Published var status: ManagerStatus = .unknown
     @Published var debugLog: String = ""
@@ -199,6 +202,8 @@ class MultitouchManager: ObservableObject {
         }
 
         log("Starting FlowTouch Manager...")
+        touchCount = 0
+        resetCallbackValidation()
 
         // 1. Check and request permissions
         checkPermissions()
@@ -221,9 +226,12 @@ class MultitouchManager: ObservableObject {
         }
         devices.removeAll()
         isRunning = false
+        touchCount = 0
+        resetCallbackValidation()
 
         DispatchQueue.main.async {
             self.status = .unknown
+            StatusBarManager.shared.updateStatus()
         }
         cleanupEventTap()
     }
@@ -239,9 +247,10 @@ class MultitouchManager: ObservableObject {
             log("Accessibility permission required for window management", level: .warning)
             if status != .permissionDenied {
                 status = .accessibilityDenied
+                StatusBarManager.shared.updateStatus()
             }
         } else if status == .accessibilityDenied {
-            status = isRunning ? .active : .unknown
+            updateRunningStatusOnMain()
         }
 
         // Input Monitoring is harder to check directly - we infer from device access
@@ -280,7 +289,7 @@ class MultitouchManager: ObservableObject {
             options: .defaultTap,
             eventsOfInterest: CGEventMask(eventMask),
             callback: { _, _, event, _ in
-                return Unmanaged.passRetained(event)
+                return Unmanaged.passUnretained(event)
             },
             userInfo: nil
         ) else {
@@ -307,6 +316,14 @@ class MultitouchManager: ObservableObject {
     // MARK: - Device Management
 
     func checkDevices() {
+        if isRunning {
+            log("Devices already running; skipping duplicate device check", level: .debug)
+            DispatchQueue.main.async {
+                self.updateRunningStatusOnMain()
+            }
+            return
+        }
+
         log("Checking for multitouch devices...")
 
         var foundDevices: [MTDeviceRef] = []
@@ -348,6 +365,7 @@ class MultitouchManager: ObservableObject {
                 } else {
                     self.status = .noDeviceFound
                 }
+                StatusBarManager.shared.updateStatus()
             }
             return
         }
@@ -358,7 +376,7 @@ class MultitouchManager: ObservableObject {
     }
 
     private func startDevices() {
-        let allStarted = true
+        resetCallbackValidation()
 
         for (index, device) in devices.enumerated() {
             log("Starting device \(index + 1)/\(devices.count): \(device)")
@@ -375,14 +393,42 @@ class MultitouchManager: ObservableObject {
         isRunning = true
 
         DispatchQueue.main.async {
-            if allStarted {
-                if self.hasAccessibility {
-                    self.status = .active
-                    self.log("All devices started. FlowTouch is active!")
-                } else {
-                    self.status = .accessibilityDenied
-                    self.log("Accessibility permission not yet granted. Window management may not work.", level: .warning)
-                }
+            self.touchCount = 0
+            if self.hasAccessibility {
+                self.status = .awaitingTouch
+                self.log("Devices started. Waiting for first touch callback...")
+            } else {
+                self.status = .accessibilityDenied
+                self.log("Touch capture started, but Accessibility permission not yet granted.", level: .warning)
+            }
+            StatusBarManager.shared.updateStatus()
+        }
+    }
+
+    func noteTouchCallback(frameId: Int32, numFingers: Int32) {
+        let didValidateCallback = callbackStateQueue.sync { () -> Bool in
+            if hasReceivedTouchCallback {
+                return false
+            }
+            hasReceivedTouchCallback = true
+            return true
+        }
+
+        let shouldUpdateTouchCounter = numFingers > 0 && frameId % 10 == 0
+        guard didValidateCallback || shouldUpdateTouchCounter else { return }
+
+        DispatchQueue.main.async {
+            if shouldUpdateTouchCounter {
+                self.touchCount += 1
+            }
+
+            guard didValidateCallback else { return }
+
+            self.updateRunningStatusOnMain()
+            if self.status == .active {
+                self.log("First touch callback verified. FlowTouch is active!")
+            } else if self.status == .accessibilityDenied {
+                self.log("Touch callback verified, but Accessibility permission is still missing.", level: .warning)
             }
         }
     }
@@ -393,6 +439,8 @@ class MultitouchManager: ObservableObject {
         switch status {
         case .unknown:
             return "Initializing..."
+        case .awaitingTouch:
+            return "Waiting for First Touch"
         case .active:
             return "Active"
         case .permissionDenied:
@@ -467,6 +515,34 @@ class MultitouchManager: ObservableObject {
             eventTap = nil
         }
     }
+
+    private func updateRunningStatusOnMain() {
+        guard Thread.isMainThread else {
+            DispatchQueue.main.async { [weak self] in
+                self?.updateRunningStatusOnMain()
+            }
+            return
+        }
+
+        if !hasAccessibility {
+            status = .accessibilityDenied
+        } else if isRunning {
+            status = callbackValidated ? .active : .awaitingTouch
+        } else {
+            status = .unknown
+        }
+        StatusBarManager.shared.updateStatus()
+    }
+
+    private var callbackValidated: Bool {
+        callbackStateQueue.sync { hasReceivedTouchCallback }
+    }
+
+    private func resetCallbackValidation() {
+        callbackStateQueue.sync {
+            hasReceivedTouchCallback = false
+        }
+    }
 }
 
 // MARK: - Global Touch Callback
@@ -480,6 +556,8 @@ func globalTouchCallback(
     timestamp: Double,
     frameId: Int32
 ) {
+    MultitouchManager.shared.noteTouchCallback(frameId: frameId, numFingers: numFingers)
+
     // Heartbeat logging (every ~0.5s at 120Hz)
     #if DEBUG
     if frameId % 60 == 0 {
@@ -489,7 +567,7 @@ func globalTouchCallback(
 
     // Handle empty frame (all fingers lifted)
     guard let fingersPtr = fingersPtr else {
-        GestureEngine.shared.processFrame(timestamp: timestamp, touches: [])
+        GestureEngine.shared.processFrame(device: device, timestamp: timestamp, touches: [])
         return
     }
 
@@ -504,23 +582,24 @@ func globalTouchCallback(
         touchArray.reserveCapacity(count)
 
         for i in 0..<count {
-            touchArray.append(fingers[i])
+            let touch = fingers[i]
+            guard touch.normalizedVector.x.isFinite, touch.normalizedVector.y.isFinite else {
+                continue
+            }
+            touchArray.append(touch)
+        }
+
+        touchArray.sort {
+            if $0.identifier == $1.identifier {
+                return $0.fingerID < $1.fingerID
+            }
+            return $0.identifier < $1.identifier
         }
 
         // Feed to Gesture Engine
-        GestureEngine.shared.processFrame(timestamp: timestamp, touches: touchArray)
-
-        // Update UI touch counter (throttled)
-        if frameId % 10 == 0 {
-            DispatchQueue.main.async {
-                MultitouchManager.shared.touchCount += 1
-                if MultitouchManager.shared.touchCount == 1 {
-                    MultitouchManager.shared.log("First touch received! Engine is active.")
-                }
-            }
-        }
+        GestureEngine.shared.processFrame(device: device, timestamp: timestamp, touches: touchArray)
     } else {
         // Empty touch frame
-        GestureEngine.shared.processFrame(timestamp: timestamp, touches: [])
+        GestureEngine.shared.processFrame(device: device, timestamp: timestamp, touches: [])
     }
 }

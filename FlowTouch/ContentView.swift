@@ -37,7 +37,7 @@ struct ContentView: View {
     var body: some View {
         Group {
             switch manager.status {
-            case .active:
+            case .active, .awaitingTouch:
                 MainView()
 
             case .permissionDenied, .accessibilityDenied:
@@ -386,7 +386,7 @@ struct SwipeConfigView: View {
 
                 Spacer()
 
-                Text("\(mapping.configuredCount)/8 configured")
+                Text(String(format: L("configured_count_format"), mapping.configuredCount, 8))
                     .font(.system(size: 11))
                     .foregroundColor(.secondary)
             }
@@ -404,7 +404,7 @@ struct SwipeConfigView: View {
         .sheet(isPresented: $showActionPicker) {
             if let direction = selectedDirection {
                 ActionPickerSheet(
-                    title: "Swipe \(direction.displayName)",
+                    title: String(format: L("swipe_title_format"), direction.displayName),
                     currentAction: mapping.action(for: direction),
                     onSelect: { action in
                         var newMapping = mapping
@@ -567,7 +567,7 @@ struct CenterIndicator: View {
                 }
             }
 
-            Text("\(fingerCount)F Swipe")
+            Text(String(format: L("finger_swipe_format"), fingerCount))
                 .font(.system(size: 9, weight: .semibold))
                 .foregroundColor(.blue)
         }
@@ -604,7 +604,7 @@ struct TapConfigView: View {
 
                 Spacer()
 
-                Text("\(mapping.configuredCount)/3 configured")
+                Text(String(format: L("configured_count_format"), mapping.configuredCount, 3))
                     .font(.system(size: 11))
                     .foregroundColor(.secondary)
             }
@@ -627,7 +627,7 @@ struct TapConfigView: View {
         .sheet(isPresented: $showActionPicker) {
             if let tapType = selectedTapType {
                 ActionPickerSheet(
-                    title: "\(fingerCount)-Finger \(tapType.displayName)",
+                    title: String(format: L("finger_action_title_format"), fingerCount, tapType.displayName),
                     currentAction: mapping.action(for: tapType),
                     onSelect: { action in
                         var newMapping = mapping
@@ -679,7 +679,7 @@ struct TapActionCard: View {
 
                 // Info
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("\(fingerCount)-Finger \(tapType.displayName)")
+                    Text(String(format: L("finger_action_title_format"), fingerCount, tapType.displayName))
                         .font(.system(size: 13, weight: .medium))
                         .foregroundColor(isConfigured ? .primary : .gray)
 
@@ -1286,7 +1286,7 @@ struct ActionCategorySection: View {
     let onSelect: (WindowAction) -> Void
 
     private var actionsInCategory: [WindowAction] {
-        WindowAction.allCases.filter { $0.category == category }
+        category.actions
     }
 
     private var categoryColor: Color {
@@ -1376,12 +1376,15 @@ struct ActionPickerButton: View {
 
 struct MainFooter: View {
     @State private var tipIndex = 0
-    private let tips = [
-        "Swipe on trackpad to snap windows",
-        "Right-click actions to test them",
-        "Enable 3 or 4 fingers for more gestures",
-        "Dashed borders = not configured"
-    ]
+
+    private var tips: [String] {
+        [
+            L("Swipe on trackpad to snap windows"),
+            L("Right-click actions to test them"),
+            L("Enable 3 or 4 fingers for more gestures"),
+            L("Dashed borders = not configured")
+        ]
+    }
 
     var body: some View {
         HStack {
@@ -1394,9 +1397,13 @@ struct MainFooter: View {
                     .font(.system(size: 11))
                     .foregroundColor(.secondary)
             }
-            .onAppear {
-                Timer.scheduledTimer(withTimeInterval: 4.0, repeats: true) { _ in
-                    withAnimation { tipIndex = (tipIndex + 1) % tips.count }
+            .task {
+                while !Task.isCancelled {
+                    try? await Task.sleep(for: .seconds(4))
+                    guard !Task.isCancelled else { break }
+                    withAnimation {
+                        tipIndex = (tipIndex + 1) % tips.count
+                    }
                 }
             }
 

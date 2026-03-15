@@ -212,6 +212,7 @@ class RuleManager: ObservableObject {
 
     private init() {
         load()
+        migrateLegacyConfigurationIfNeeded()
         setupAppSwitchObserver()
     }
 
@@ -236,12 +237,12 @@ class RuleManager: ObservableObject {
     // MARK: - CRUD Operations
 
     func addRule(_ rule: GestureRule) {
-        rules.append(rule)
+        rules.append(normalizeRule(rule))
     }
 
     func updateRule(_ rule: GestureRule) {
         if let index = rules.firstIndex(where: { $0.id == rule.id }) {
-            rules[index] = rule
+            rules[index] = normalizeRule(rule)
         }
     }
 
@@ -412,7 +413,7 @@ class RuleManager: ObservableObject {
               let savedRules = try? JSONDecoder().decode([GestureRule].self, from: data) else {
             return
         }
-        rules = savedRules
+        rules = savedRules.map(normalizeRule)
     }
 
     // MARK: - Export/Import
@@ -426,12 +427,125 @@ class RuleManager: ObservableObject {
             return false
         }
 
+        let normalizedRules = importedRules.map(normalizeRule)
+
         if replace {
-            rules = importedRules
+            rules = normalizedRules
         } else {
-            rules.append(contentsOf: importedRules)
+            rules.append(contentsOf: normalizedRules)
         }
         return true
+    }
+
+    private func normalizeRule(_ rule: GestureRule) -> GestureRule {
+        var normalizedRule = rule
+
+        switch normalizedRule.action {
+        case .moveToNextSpace:
+            normalizedRule.action = .spaceRight
+        case .moveToPrevSpace:
+            normalizedRule.action = .spaceLeft
+        default:
+            break
+        }
+
+        return normalizedRule
+    }
+
+    private func migrateLegacyConfigurationIfNeeded() {
+        let configManager = ConfigurationManager.shared
+        let legacyRules = buildLegacyRules(from: configManager.config)
+        guard !legacyRules.isEmpty else { return }
+
+        let migratedRules = legacyRules
+            .map(normalizeRule)
+            .filter { checkConflict(trigger: $0.trigger, scope: $0.scope) == nil }
+
+        if !migratedRules.isEmpty {
+            rules.append(contentsOf: migratedRules)
+        }
+
+        configManager.clearLegacyGestureMappings()
+
+        #if DEBUG
+        print("[RuleManager] Migrated \(migratedRules.count) legacy gesture rule(s) and cleared legacy configuration")
+        #endif
+    }
+
+    private func buildLegacyRules(from config: GestureConfiguration) -> [GestureRule] {
+        var legacyRules: [GestureRule] = []
+
+        for fingerCount in [2, 3, 4] {
+            appendLegacySwipeRules(
+                from: config.swipeMapping(for: fingerCount),
+                fingerCount: fingerCount,
+                to: &legacyRules
+            )
+            appendLegacyTapRules(
+                from: config.tapMapping(for: fingerCount),
+                fingerCount: fingerCount,
+                to: &legacyRules
+            )
+        }
+
+        if config.pinchEnabled {
+            appendLegacyPinchRules(from: config.pinchGestures, to: &legacyRules)
+        }
+
+        return legacyRules
+    }
+
+    private func appendLegacySwipeRules(
+        from mapping: SwipeMapping,
+        fingerCount: Int,
+        to rules: inout [GestureRule]
+    ) {
+        for direction in SwipeDirection.allCases {
+            let action = mapping.action(for: direction)
+            guard action != .none else { continue }
+
+            rules.append(
+                GestureRule(
+                    trigger: .swipe(fingers: fingerCount, direction: direction),
+                    action: action
+                )
+            )
+        }
+    }
+
+    private func appendLegacyTapRules(
+        from mapping: TapMapping,
+        fingerCount: Int,
+        to rules: inout [GestureRule]
+    ) {
+        for tapType in TapType.allCases {
+            let action = mapping.action(for: tapType)
+            guard action != .none else { continue }
+
+            rules.append(
+                GestureRule(
+                    trigger: .tap(fingers: fingerCount, tapType: tapType),
+                    action: action
+                )
+            )
+        }
+    }
+
+    private func appendLegacyPinchRules(
+        from mapping: PinchMapping,
+        to rules: inout [GestureRule]
+    ) {
+        for direction in PinchDirection.allCases {
+            let action = mapping.action(for: direction)
+            guard action != .none else { continue }
+
+            rules.append(
+                GestureRule(
+                    trigger: .pinch(direction: direction),
+                    action: action
+                )
+            )
+        }
     }
 }
 

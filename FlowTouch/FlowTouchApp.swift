@@ -241,6 +241,7 @@ struct WindowOpenerView: View {
 @main
 struct FlowTouchApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
+    @ObservedObject var localization = LocalizationManager.shared
 
     var body: some Scene {
         WindowGroup(id: "main") {
@@ -253,13 +254,13 @@ struct FlowTouchApp: App {
         .windowResizability(.contentSize)
         .commands {
             CommandGroup(replacing: .appInfo) {
-                Button("About FlowTouch") {
+                Button(L("About FlowTouch")) {
                     showAboutWindow()
                 }
             }
 
             CommandGroup(after: .appSettings) {
-                Button("Check Permissions") {
+                Button(L("检查权限")) {
                     MultitouchManager.shared.checkPermissions()
                     MultitouchManager.shared.checkDevices()
                 }
@@ -271,22 +272,9 @@ struct FlowTouchApp: App {
     private func showAboutWindow() {
         let alert = NSAlert()
         alert.messageText = "FlowTouch"
-        alert.informativeText = """
-        Version 1.0
-
-        Two-finger window management for macOS.
-        Swipe to snap windows. Simple and fast.
-
-        Gesture Reference:
-        • Swipe left/right → Half screen
-        • Swipe up → Maximize
-        • Swipe down → Restore
-        • Diagonal swipe → Quarter screen
-        • Pinch in → Center
-        • Pinch out → Maximize
-        """
+        alert.informativeText = L("about_informative_text")
         alert.alertStyle = .informational
-        alert.addButton(withTitle: "OK")
+        alert.addButton(withTitle: L("确定"))
         alert.runModal()
     }
 }

@@ -9,6 +9,11 @@
 "未检测到触控板" = "未检测到触控板";
 "需要辅助功能权限" = "需要辅助功能权限";
 "正在启动..." = "正在启动...";
+"等待首次触摸" = "等待首次触摸";
+"完成授权后回到应用，FlowTouch 会自动重新检查。" = "完成授权后回到应用，FlowTouch 会自动重新检查。";
+"如果系统没有弹出授权窗口，请使用每一项右侧的“打开设置”。" = "如果系统没有弹出授权窗口，请使用每一项右侧的“打开设置”。";
+"打开设置" = "打开设置";
+"待授权" = "待授权";
 "← 左半屏" = "← 左半屏";
 "右半屏 →" = "右半屏 →";
 "↑ 最大化" = "↑ 最大化";
@@ -19,6 +24,7 @@
 "FlowTouch 运行中" = "FlowTouch 运行中";
 "未激活" = "未激活";
 "FlowTouch - Two-Finger Window Control" = "FlowTouch - 双指窗口控制";
+"About FlowTouch" = "关于 FlowTouch";
 
 /* Settings */
 "设置" = "设置";
@@ -75,6 +81,16 @@
 "8 directions: All window positions" = "8 个方向：全部窗口位置";
 "Start from scratch" = "从零开始";
 "Uses 3-finger gestures to avoid conflicts with system scrolling" = "使用三指手势以避免与系统滚动冲突";
+"Fingers" = "手指数";
+"Swipe Directions" = "滑动方向";
+"Tap Actions" = "点击动作";
+"Pinch Gestures" = "捏合手势";
+"Pinch gestures are disabled" = "捏合手势已禁用";
+"Hide" = "隐藏";
+"Swipe on trackpad to snap windows" = "在触控板上滑动以贴靠窗口";
+"Right-click actions to test them" = "右键操作项可以直接测试";
+"Enable 3 or 4 fingers for more gestures" = "启用 3 指或 4 指可获得更多手势";
+"Dashed borders = not configured" = "虚线边框表示尚未配置";
 
 /* No Device / Init */
 "未找到触控板" = "未找到触控板";
@@ -101,6 +117,8 @@
 "Ensure a Magic Trackpad is connected or you're using a MacBook with built-in trackpad." = "请确保已连接 Magic Trackpad 或使用 MacBook 内置触控板。";
 "Retry" = "重试";
 "Request Accessibility" = "请求辅助功能";
+"Debug Log" = "调试日志";
+"No logs yet..." = "暂无日志...";
 
 /* Action Selection */
 "选择操作" = "选择操作";
@@ -163,6 +181,7 @@
 "退出应用" = "退出应用";
 "隐藏应用" = "隐藏应用";
 "隐藏其他" = "隐藏其他";
+"切换" = "切换";
 "切换应用" = "切换应用";
 "上个应用" = "上个应用";
 "新建标签页" = "新建标签页";
@@ -250,6 +269,11 @@
 "Not configured" = "未配置";
 "gesture_swipe_format" = "%d指%@滑";
 "gesture_tap_format" = "%d指%@";
+"configured_count_format" = "已配置 %d/%d";
+"swipe_title_format" = "滑动 %@";
+"finger_swipe_format" = "%d 指滑动";
+"finger_action_title_format" = "%d 指 %@";
+"action_failed_format" = "%@失败";
 "disable_fingers_format" = "禁用 %d 指";
 "enable_fingers_format" = "启用 %d 指";
 "Change Action" = "更改操作";
@@ -257,6 +281,7 @@
 "Click to change • Right-click to test" = "点击更改 • 右键测试";
 "Click to set action" = "点击设置操作";
 "Test: %@" = "测试：%@";
+"about_informative_text" = "版本 1.0\n\n适用于 macOS 的双指窗口管理。\n滑动即可贴靠窗口，简单直接。\n\n手势说明：\n• 左/右滑动 → 半屏\n• 向上滑动 → 最大化\n• 向下滑动 → 还原\n• 对角滑动 → 四分屏\n• 向内捏合 → 居中\n• 向外张开 → 最大化";
 "手势学习模式" = "手势学习模式";
 "在触控板上尝试手势，查看识别结果" = "在触控板上尝试手势，查看识别结果";
 "学习模式已启用 - 手势不会执行动作" = "学习模式已启用 - 手势不会执行动作";

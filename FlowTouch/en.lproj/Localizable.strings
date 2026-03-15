@@ -9,6 +9,11 @@
 "未检测到触控板" = "No Trackpad Detected";
 "需要辅助功能权限" = "Accessibility Required";
 "正在启动..." = "Starting...";
+"等待首次触摸" = "Waiting for First Touch";
+"完成授权后回到应用，FlowTouch 会自动重新检查。" = "Return to the app after granting access and FlowTouch will refresh automatically.";
+"如果系统没有弹出授权窗口，请使用每一项右侧的“打开设置”。" = "If no permission prompt appears, use the “Open Settings” button on the right.";
+"打开设置" = "Open Settings";
+"待授权" = "Pending";
 "← 左半屏" = "← Left Half";
 "右半屏 →" = "Right Half →";
 "↑ 最大化" = "↑ Maximize";
@@ -19,6 +24,7 @@
 "FlowTouch 运行中" = "FlowTouch Active";
 "未激活" = "Inactive";
 "FlowTouch - Two-Finger Window Control" = "FlowTouch - Two-Finger Window Control";
+"About FlowTouch" = "About FlowTouch";
 
 /* Settings */
 "设置" = "Settings";
@@ -75,6 +81,16 @@
 "8 directions: All window positions" = "8 directions: All window positions";
 "Start from scratch" = "Start from scratch";
 "Uses 3-finger gestures to avoid conflicts with system scrolling" = "Uses 3-finger gestures to avoid conflicts with system scrolling";
+"Fingers" = "Fingers";
+"Swipe Directions" = "Swipe Directions";
+"Tap Actions" = "Tap Actions";
+"Pinch Gestures" = "Pinch Gestures";
+"Pinch gestures are disabled" = "Pinch gestures are disabled";
+"Hide" = "Hide";
+"Swipe on trackpad to snap windows" = "Swipe on trackpad to snap windows";
+"Right-click actions to test them" = "Right-click actions to test them";
+"Enable 3 or 4 fingers for more gestures" = "Enable 3 or 4 fingers for more gestures";
+"Dashed borders = not configured" = "Dashed borders = not configured";
 
 /* No Device / Init */
 "未找到触控板" = "No Trackpad Found";
@@ -101,6 +117,8 @@
 "Ensure a Magic Trackpad is connected or you're using a MacBook with built-in trackpad." = "Ensure a Magic Trackpad is connected or you’re using a MacBook with a built‑in trackpad.";
 "Retry" = "Retry";
 "Request Accessibility" = "Request Accessibility";
+"Debug Log" = "Debug Log";
+"No logs yet..." = "No logs yet...";
 
 /* Action Selection */
 "选择操作" = "Select Action";
@@ -163,6 +181,7 @@
 "退出应用" = "Quit App";
 "隐藏应用" = "Hide App";
 "隐藏其他" = "Hide Others";
+"切换" = "Switch";
 "切换应用" = "Switch App";
 "上个应用" = "Previous App";
 "新建标签页" = "New Tab";
@@ -250,6 +269,11 @@
 "Not configured" = "Not configured";
 "gesture_swipe_format" = "%d-finger %@ swipe";
 "gesture_tap_format" = "%d-finger %@";
+"configured_count_format" = "%d/%d configured";
+"swipe_title_format" = "Swipe %@";
+"finger_swipe_format" = "%dF Swipe";
+"finger_action_title_format" = "%d-Finger %@";
+"action_failed_format" = "Failed: %@";
 "disable_fingers_format" = "Disable %d fingers";
 "enable_fingers_format" = "Enable %d fingers";
 "Change Action" = "Change Action";
@@ -257,6 +281,7 @@
 "Click to change • Right-click to test" = "Click to change • Right-click to test";
 "Click to set action" = "Click to set action";
 "Test: %@" = "Test: %@";
+"about_informative_text" = "Version 1.0\n\nTwo-finger window management for macOS.\nSwipe to snap windows. Simple and fast.\n\nGesture Reference:\n• Swipe left/right → Half screen\n• Swipe up → Maximize\n• Swipe down → Restore\n• Diagonal swipe → Quarter screen\n• Pinch in → Center\n• Pinch out → Maximize";
 "手势学习模式" = "Gesture Learning";
 "在触控板上尝试手势，查看识别结果" = "Try gestures on the trackpad to see recognition results";
 "学习模式已启用 - 手势不会执行动作" = "Learning mode is on — gestures won’t execute actions";

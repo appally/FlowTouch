@@ -11,6 +11,11 @@ enum GestureState: Int {
     case cancelled = 4
 }
 
+private enum GestureKind {
+    case swipe
+    case pinch
+}
+
 // MARK: - Gesture Engine (Rule-Based)
 
 class GestureEngine {
@@ -37,15 +42,27 @@ class GestureEngine {
     // State
     private var state: GestureState = .possible
     private var fingerCount: Int = 0
+    private var lockedFingerCount: Int = 0
+    private var activeGestureKind: GestureKind?
+    private var activeDevice: MTDeviceRef?
 
     // Tracking
     private var initialCentroid: MTVector?
     private var currentCentroid: MTVector?
     private var previousCentroid: MTVector?
     private var lockedDirection: SwipeDirection?
+    private var referenceTouchPositions: [MTVector] = []
+    private var smoothedTranslation: MTVector?
+    private var maxDisplacementFromStart: Float = 0
+    private var lastSwipeVector = MTVector(x: 0, y: 0)
+    private var lastSwipeDistance: Float = 0
+    private var lastResolvedSwipeDirection: SwipeDirection?
+    private var lastSwipeExecutionThreshold: Float = 0
+    private var didExecuteGestureAction = false
 
     // Pinch tracking
     private var initialPinchDistance: Float = 0
+    private var lastPinchRatio: Float = 1
 
     // Velocity tracking
     private var lastFrameTime: Double = 0
@@ -61,6 +78,7 @@ class GestureEngine {
     private var pendingPreviewDirection: SnapDirection?
     private var previewDebounceTimer: DispatchSourceTimer?
     private let previewDebounceInterval: TimeInterval = 0.08  // 80ms debounce
+    private var releaseDebounceTimer: DispatchSourceTimer?
 
     // Learning mode - shows gesture recognition without executing actions
     private(set) var isLearningMode: Bool = false
@@ -83,12 +101,26 @@ class GestureEngine {
     private let gestureTimeout: TimeInterval = 1.5
     private let minSwipeVelocity: Float = 0.3
     private let fastSwipeMultiplier: Float = 0.7
+    private let swipeDirectionSmoothingFactor: Float = 0.35
+    private let swipeReleaseCompletionRatio: Float = 0.92
+    private let pinchReleaseTolerance: Float = 0.04
+    private let releaseDebounceInterval: TimeInterval = 0.012
 
     // Tap constants
-    private let tapMovementThreshold: Float = 0.045  // More tolerant for multi-finger (increased from 0.035)
+    private let tapMovementThreshold: Float = 0.045  // Base threshold for 1–2 finger taps
     private let tapMaxDuration: TimeInterval = 0.40  // Allow slightly longer taps (increased from 0.35)
-    private let tapSequenceTimeout: TimeInterval = 0.30  // Comfortable double-tap interval (increased from 0.18)
     private let tapCooldown: TimeInterval = 0.12
+
+    private var tapSequenceTimeout: TimeInterval {
+        min(max(config.tapTimeout, 0.18), 0.45)
+    }
+
+    /// Movement threshold scaled for multi-finger taps. 3+ fingers cause larger centroid shifts when lifting.
+    private func effectiveTapMovementThreshold(for fingerCount: Int) -> Float {
+        guard fingerCount >= 3 else { return tapMovementThreshold }
+        let scale = 1.0 + Float(fingerCount - 2) * 0.25  // 3F: 1.25x, 4F: 1.5x, 5F: 1.75x
+        return tapMovementThreshold * scale
+    }
 
     // Direction unlock constants
     private let directionUnlockAngle: Float = 60  // Degrees: allow direction change if angle diff > this
@@ -128,36 +160,46 @@ class GestureEngine {
         return ruleManager.findMatchingRule(trigger: trigger)
     }
 
+    private typealias ResolvedAction = (action: WindowAction, ruleId: UUID?)
+
     /// Get action for a swipe gesture (rule-based with fallback)
-    private func getSwipeAction(fingerCount: Int, direction: SwipeDirection) -> WindowAction {
+    private func getSwipeAction(fingerCount: Int, direction: SwipeDirection) -> ResolvedAction {
         let trigger = GestureTrigger.swipe(fingers: fingerCount, direction: direction)
 
         // Try rule-based lookup first
         if let rule = findRule(for: trigger), rule.isEnabled {
-            return rule.action
+            return (rule.action, rule.id)
+        }
+
+        guard shouldUseLegacyConfiguration else {
+            return (.none, nil)
         }
 
         // Fallback to legacy configuration (for backward compatibility)
         let mapping = config.swipeMapping(for: fingerCount)
-        return mapping.action(for: direction)
+        return (mapping.action(for: direction), nil)
     }
 
     /// Get action for a pinch gesture (rule-based with fallback)
-    private func getPinchAction(direction: PinchDirection) -> WindowAction {
+    private func getPinchAction(direction: PinchDirection) -> ResolvedAction {
         let trigger = GestureTrigger.pinch(direction: direction)
 
         // Try rule-based lookup first
         if let rule = findRule(for: trigger), rule.isEnabled {
-            return rule.action
+            return (rule.action, rule.id)
+        }
+
+        guard shouldUseLegacyConfiguration else {
+            return (.none, nil)
         }
 
         // Fallback to legacy configuration
-        return config.pinchGestures.action(for: direction)
+        return (config.pinchGestures.action(for: direction), nil)
     }
 
     /// Get action for a tap gesture (rule-based with fallback)
     /// Returns (action, ruleId) tuple - ruleId is needed for customShortcut actions
-    private func getTapAction(fingerCount: Int, tapType: TapType) -> (action: WindowAction, ruleId: UUID?) {
+    private func getTapAction(fingerCount: Int, tapType: TapType) -> ResolvedAction {
         let trigger = GestureTrigger.tap(fingers: fingerCount, tapType: tapType)
 
         // Try rule-based lookup first
@@ -165,20 +207,25 @@ class GestureEngine {
             return (rule.action, rule.id)
         }
 
+        guard shouldUseLegacyConfiguration else {
+            return (.none, nil)
+        }
+
         // Fallback to legacy configuration
         let mapping = config.tapMapping(for: fingerCount)
         return (mapping.action(for: tapType), nil)
     }
 
-    /// Check if there are any enabled rules
-    private var hasEnabledRules: Bool {
-        return !ruleManager.enabledRules.isEmpty
+    /// Legacy configuration should only be used when no rule has been created yet.
+    private var shouldUseLegacyConfiguration: Bool {
+        ruleManager.rules.isEmpty
     }
 
     /// Check if tap gestures are enabled (via rules or legacy config)
     private var isTapEnabled: Bool {
         // Check if any tap rules exist
         let hasTapRules = ruleManager.enabledRules.contains { $0.trigger.type == .tap }
+        guard shouldUseLegacyConfiguration else { return hasTapRules }
         let hasConfiguredTap = (config.twoFingerTap.configuredCount +
                                 config.threeFingerTap.configuredCount +
                                 config.fourFingerTap.configuredCount) > 0
@@ -188,6 +235,7 @@ class GestureEngine {
     /// Check if pinch gestures are enabled (via rules or legacy config)
     private var isPinchEnabled: Bool {
         let hasPinchRules = ruleManager.enabledRules.contains { $0.trigger.type == .pinch }
+        guard shouldUseLegacyConfiguration else { return hasPinchRules }
         return hasPinchRules || config.pinchEnabled
     }
 
@@ -195,6 +243,7 @@ class GestureEngine {
     private func isFingerCountEnabled(_ count: Int) -> Bool {
         let hasRulesForCount = ruleManager.enabledRules.contains { $0.trigger.fingerCount == count }
         if hasRulesForCount { return true }
+        guard shouldUseLegacyConfiguration else { return false }
         if config.enabledFingerCounts.contains(count) { return true }
         if config.swipeMapping(for: count).configuredCount > 0 { return true }
         if config.tapMapping(for: count).configuredCount > 0 { return true }
@@ -204,6 +253,7 @@ class GestureEngine {
 
     private func isSwipeEnabled(for count: Int) -> Bool {
         let hasSwipeRules = ruleManager.enabledRules.contains { $0.trigger.type == .swipe && $0.trigger.fingerCount == count }
+        guard shouldUseLegacyConfiguration else { return hasSwipeRules }
         return hasSwipeRules || config.swipeMapping(for: count).configuredCount > 0
     }
 
@@ -217,31 +267,28 @@ class GestureEngine {
 
     // MARK: - Process Frame
 
-    func processFrame(timestamp: Double, touches: [MTTouch]) {
+    func processFrame(device: MTDeviceRef, timestamp: Double, touches: [MTTouch]) {
         asyncOnQueue { [weak self] in
-            self?.processFrameInternal(timestamp: timestamp, touches: touches)
+            self?.processFrameInternal(device: device, timestamp: timestamp, touches: touches)
         }
     }
 
-    private func processFrameInternal(timestamp: Double, touches: [MTTouch]) {
+    private func processFrameInternal(device: MTDeviceRef, timestamp: Double, touches: [MTTouch]) {
+        if let activeDevice, activeDevice != device {
+            return
+        }
+
         // Handle empty frame (all fingers lifted)
         if touches.isEmpty {
-            if state == .began || state == .changed {
-                finalizeGesture()
-            } else if isTapCandidate && isTapEnabled && peakTouchingFingers > 0 {
-                // Check if this was a tap (minimal movement, short duration)
-                let touchDuration = timestamp - touchDownTime
-                if totalMovement < tapMovementThreshold && touchDuration < tapMaxDuration {
-                    // Use peak finger count for tap detection
-                    fingerCount = peakTouchingFingers
-                    #if DEBUG
-                    print("[GestureEngine] Tap candidate: \(fingerCount)F, duration: \(String(format: "%.3f", touchDuration))s, movement: \(totalMovement)")
-                    #endif
-                    handleTapDetected(timestamp: timestamp)
-                }
-            }
-            resetState()
+            guard activeDevice != nil else { return }
+            scheduleReleaseConfirmation(timestamp: timestamp)
             return
+        }
+
+        cancelReleaseConfirmation()
+
+        if activeDevice == nil {
+            activeDevice = device
         }
 
         // Track peak finger count during this touch sequence
@@ -271,8 +318,10 @@ class GestureEngine {
         if lastFrameTime > 0 {
             let dt = Float(timestamp - lastFrameTime)
             if dt > 0, let prev = previousCentroid {
-                velocityX = (centroid.x - prev.x) / dt
-                velocityY = (centroid.y - prev.y) / dt
+                let instantaneousX = (centroid.x - prev.x) / dt
+                let instantaneousY = (centroid.y - prev.y) / dt
+                velocityX = velocityX == 0 ? instantaneousX : (velocityX * 0.65) + (instantaneousX * 0.35)
+                velocityY = velocityY == 0 ? instantaneousY : (velocityY * 0.65) + (instantaneousY * 0.35)
             }
         }
         lastFrameTime = timestamp
@@ -293,25 +342,17 @@ class GestureEngine {
     // MARK: - State Handlers
 
     private func handlePossibleState(centroid: MTVector, touches: [MTTouch], timestamp: Double) {
-        // Initialize tracking
-        if initialCentroid == nil {
-            initialCentroid = centroid
-            gestureStartTime = timestamp
-            touchDownTime = timestamp
-            totalMovement = 0
-            isTapCandidate = true
-
-            // Calculate initial pinch distance (only for 2 fingers)
-            if fingerCount == 2 && isPinchEnabled {
-                initialPinchDistance = calculateAverageDistance(touches)
-            }
+        let needsRebase = initialCentroid == nil || referenceTouchPositions.count != fingerCount
+        if needsRebase {
+            rebaseTrackingReference(centroid: centroid, touches: touches, timestamp: timestamp)
+            return
         }
 
-        guard let start = initialCentroid else { return }
-
-        let dx = centroid.x - start.x
-        let dy = centroid.y - start.y
+        let translation = calculateGestureTranslation(for: touches, fallbackCentroid: centroid)
+        let dx = translation.x
+        let dy = translation.y
         let distance = sqrt(dx * dx + dy * dy)
+        maxDisplacementFromStart = max(maxDisplacementFromStart, distance)
 
         // Track total movement for tap detection
         if let prev = previousCentroid {
@@ -324,10 +365,13 @@ class GestureEngine {
         if fingerCount == 2 && isPinchEnabled && initialPinchDistance > 0 {
             let currentDistance = calculateAverageDistance(touches)
             let pinchRatio = currentDistance / initialPinchDistance
+            lastPinchRatio = pinchRatio
 
             if pinchRatio < 0.80 || pinchRatio > 1.25 {
                 cancelTapSequence()
                 state = .began
+                activeGestureKind = .pinch
+                lockedFingerCount = fingerCount
                 isTapCandidate = false  // Not a tap - it's a pinch
                 #if DEBUG
                 print("[GestureEngine] Pinch detected, ratio: \(pinchRatio)")
@@ -337,22 +381,26 @@ class GestureEngine {
         }
 
         // Check for movement threshold (favor tap if swipe isn't configured)
-        let swipeStartThreshold = isTapCandidate ? max(gestureStartThreshold, tapMovementThreshold) : gestureStartThreshold
+        let tapThreshold = effectiveTapMovementThreshold(for: max(fingerCount, peakTouchingFingers))
+        let dynamicStartThreshold = max(gestureStartThreshold, Float(config.swipeThreshold) * 0.55)
+        let swipeStartThreshold = isTapCandidate ? max(dynamicStartThreshold, tapThreshold) : dynamicStartThreshold
         if isSwipeEnabled(for: fingerCount) && distance > swipeStartThreshold {
             cancelTapSequence()
             state = .began
+            activeGestureKind = .swipe
+            lockedFingerCount = fingerCount
             isTapCandidate = false  // Not a tap - it's a swipe
-            lockedDirection = determineSwipeDirection(dx: dx, dy: dy)
+            lastSwipeVector = translation
+            lastSwipeDistance = distance
+            lastResolvedSwipeDirection = determineSwipeDirection(dx: dx, dy: dy, fingerCount: lockedFingerCount)
             #if DEBUG
-            print("[GestureEngine] Swipe began, direction: \(lockedDirection?.displayName ?? "unknown"), distance: \(distance)")
+            print("[GestureEngine] Swipe began, direction: \(lastResolvedSwipeDirection?.displayName ?? "unknown"), distance: \(distance)")
             #endif
         }
     }
 
     private func handleActiveState(centroid: MTVector, touches: [MTTouch], timestamp: Double) {
         state = .changed
-
-        guard let start = initialCentroid else { return }
 
         // Check gesture timeout
         if timestamp - gestureStartTime > gestureTimeout {
@@ -368,9 +416,14 @@ class GestureEngine {
             return
         }
 
-        let dx = centroid.x - start.x
-        let dy = centroid.y - start.y
+        let gestureFingerCount = lockedFingerCount > 0 ? lockedFingerCount : fingerCount
+        let translation = calculateGestureTranslation(for: touches, fallbackCentroid: centroid)
+        let smoothed = smoothSwipeTranslation(translation)
+        let dx = translation.x
+        let dy = translation.y
         let distance = sqrt(dx * dx + dy * dy)
+        lastSwipeVector = translation
+        lastSwipeDistance = distance
 
         // Get threshold from config
         let baseThreshold = Float(config.swipeThreshold)
@@ -380,20 +433,21 @@ class GestureEngine {
         let effectiveThreshold = velocity > minSwipeVelocity
             ? baseThreshold * fastSwipeMultiplier
             : baseThreshold
+        lastSwipeExecutionThreshold = effectiveThreshold
 
-        // Check for pinch gesture first (2 fingers only)
-        if fingerCount == 2 && isPinchEnabled && initialPinchDistance > 0 {
+        if activeGestureKind == .pinch && gestureFingerCount == 2 && isPinchEnabled && initialPinchDistance > 0 {
             let currentDistance = calculateAverageDistance(touches)
             let pinchRatio = currentDistance / initialPinchDistance
+            lastPinchRatio = pinchRatio
 
             // Pinch in
             if pinchRatio < Float(config.pinchInThreshold) {
                 cancelTapSequence()
                 let action = getPinchAction(direction: .pinchIn)
                 #if DEBUG
-                print("[GestureEngine] Pinch in triggered, ratio: \(pinchRatio), action: \(action)")
+                print("[GestureEngine] Pinch in triggered, ratio: \(pinchRatio), action: \(action.action)")
                 #endif
-                executeAction(action, timestamp: timestamp, gestureName: "捏合")
+                executeAction(action.action, timestamp: timestamp, ruleId: action.ruleId, gestureName: "捏合")
                 return
             }
 
@@ -402,22 +456,38 @@ class GestureEngine {
                 cancelTapSequence()
                 let action = getPinchAction(direction: .pinchOut)
                 #if DEBUG
-                print("[GestureEngine] Pinch out triggered, ratio: \(pinchRatio), action: \(action)")
+                print("[GestureEngine] Pinch out triggered, ratio: \(pinchRatio), action: \(action.action)")
                 #endif
-                executeAction(action, timestamp: timestamp, gestureName: "张开")
+                executeAction(action.action, timestamp: timestamp, ruleId: action.ruleId, gestureName: "张开")
                 return
             }
+
+            return
         }
 
         // Check for swipe
-        if isSwipeEnabled(for: fingerCount) && distance > effectiveThreshold * 0.6 {
+        guard activeGestureKind != .pinch else { return }
+        if isSwipeEnabled(for: gestureFingerCount) && distance > effectiveThreshold * 0.55 {
             // Determine current direction
-            let currentDirection = determineSwipeDirection(dx: dx, dy: dy)
+            let currentDirection = determineSwipeDirection(
+                dx: smoothed.x,
+                dy: smoothed.y,
+                fingerCount: gestureFingerCount
+            )
+            lastResolvedSwipeDirection = currentDirection
+
+            if lockedDirection == nil && distance >= directionConfirmDistance {
+                lockedDirection = currentDirection
+            }
 
             // Direction unlock: allow updating locked direction if user significantly changed direction
             if let locked = lockedDirection, distance > directionConfirmDistance {
                 let angleDiff = angleDifference(from: locked, to: currentDirection)
-                if angleDiff > directionUnlockAngle {
+                let lockedAction = getSwipeAction(fingerCount: gestureFingerCount, direction: locked)
+                let currentAction = getSwipeAction(fingerCount: gestureFingerCount, direction: currentDirection)
+                let shouldUnlock = angleDiff > directionUnlockAngle ||
+                    (lockedAction.action == .none && currentAction.action != .none)
+                if shouldUnlock {
                     lockedDirection = currentDirection
                     #if DEBUG
                     print("[GestureEngine] Direction unlocked: \(locked.displayName) -> \(currentDirection.displayName), angleDiff: \(angleDiff)°")
@@ -427,30 +497,32 @@ class GestureEngine {
 
             // Use locked direction if available, otherwise use current
             let direction = lockedDirection ?? currentDirection
-            let action = getSwipeAction(fingerCount: fingerCount, direction: direction)
+            let action = getSwipeAction(fingerCount: gestureFingerCount, direction: direction)
 
-            if let snapDir = action.snapDirection {
+            if let snapDir = action.action.snapDirection {
                 showPreview(for: snapDir)
+            } else {
+                hidePreview()
             }
 
             // Execute when threshold fully met
             if distance > effectiveThreshold {
                 let gestureName = String(
                     format: L("gesture_swipe_format"),
-                    fingerCount,
+                    gestureFingerCount,
                     direction.displayName
                 )
                 #if DEBUG
-                print("[GestureEngine] Swipe executed: \(fingerCount)F \(direction.displayName) -> \(action), distance: \(distance), threshold: \(effectiveThreshold)")
+                print("[GestureEngine] Swipe executed: \(gestureFingerCount)F \(direction.displayName) -> \(action.action), distance: \(distance), threshold: \(effectiveThreshold)")
                 #endif
-                executeAction(action, timestamp: timestamp, gestureName: gestureName)
+                executeAction(action.action, timestamp: timestamp, ruleId: action.ruleId, gestureName: gestureName)
             }
         }
     }
 
     // MARK: - Direction Detection
 
-    private func determineSwipeDirection(dx: Float, dy: Float) -> SwipeDirection {
+    private func determineSwipeDirection(dx: Float, dy: Float, fingerCount: Int) -> SwipeDirection {
         let absDx = abs(dx)
         let absDy = abs(dy)
 
@@ -458,25 +530,11 @@ class GestureEngine {
 
         // Calculate angle for precise detection
         let angle = atan2(dy, dx) * 180 / .pi  // -180 to 180
-
-        // 8-direction detection based on angle sectors (45° each)
-        if angle >= -22.5 && angle < 22.5 {
-            return .right
-        } else if angle >= 22.5 && angle < 67.5 {
-            return .topRight
-        } else if angle >= 67.5 && angle < 112.5 {
-            return .up
-        } else if angle >= 112.5 && angle < 157.5 {
-            return .topLeft
-        } else if angle >= 157.5 || angle < -157.5 {
-            return .left
-        } else if angle >= -157.5 && angle < -112.5 {
-            return .bottomLeft
-        } else if angle >= -112.5 && angle < -67.5 {
-            return .down
-        } else {
-            return .bottomRight
-        }
+        let candidates = availableSwipeDirections(for: fingerCount)
+        return candidates.min {
+            angularDifference(from: angle, to: angleForDirection($0)) <
+                angularDifference(from: angle, to: angleForDirection($1))
+        } ?? .right
     }
 
     /// Get the angle (in degrees) for a SwipeDirection
@@ -497,11 +555,22 @@ class GestureEngine {
     private func angleDifference(from dir1: SwipeDirection, to dir2: SwipeDirection) -> Float {
         let angle1 = angleForDirection(dir1)
         let angle2 = angleForDirection(dir2)
+        return angularDifference(from: angle1, to: angle2)
+    }
+
+    private func angularDifference(from angle1: Float, to angle2: Float) -> Float {
         var diff = abs(angle1 - angle2)
         if diff > 180 {
             diff = 360 - diff
         }
         return diff
+    }
+
+    private func availableSwipeDirections(for fingerCount: Int) -> [SwipeDirection] {
+        let configuredDirections = SwipeDirection.allCases.filter {
+            getSwipeAction(fingerCount: fingerCount, direction: $0).action != .none
+        }
+        return configuredDirections.isEmpty ? SwipeDirection.allCases : configuredDirections
     }
 
     // MARK: - Preview
@@ -554,6 +623,7 @@ class GestureEngine {
 
     private func executeAction(_ action: WindowAction, timestamp: Double, ruleId: UUID? = nil, gestureName: String? = nil) {
         guard action != .none else { return }
+        didExecuteGestureAction = true
 
         // Hide preview
         hidePreview()
@@ -569,14 +639,11 @@ class GestureEngine {
             return
         }
 
-        // Show action feedback on main thread
-        DispatchQueue.main.async {
-            FeedbackHUD.shared.flashAction(text: action.shortName)
-        }
-
         let actionToExecute = action
         let ruleIdToExecute = ruleId
         actionQueue.async {
+            let success: Bool
+
             // Execute the action based on category
             switch actionToExecute {
             // Window Layout actions - use WindowManager
@@ -584,67 +651,76 @@ class GestureEngine {
                  .snapTopLeft, .snapTopRight, .snapBottomLeft, .snapBottomRight,
                  .maximize, .center, .restore:
                 if let direction = actionToExecute.snapDirection {
-                    WindowManager.shared.snapFocusedWindow(direction: direction)
+                    success = WindowManager.shared.snapFocusedWindow(direction: direction)
+                } else {
+                    success = false
                 }
 
             // Basic window control - use WindowManager
             case .minimize:
-                WindowManager.shared.minimizeFocusedWindow()
+                success = WindowManager.shared.minimizeFocusedWindow()
 
             case .close:
-                WindowManager.shared.closeFocusedWindow()
+                success = WindowManager.shared.closeFocusedWindow()
 
             case .fullscreen:
-                WindowManager.shared.toggleFullscreen()
+                success = WindowManager.shared.toggleFullscreen()
 
             case .undo:
-                WindowManager.shared.undoLastOperation()
+                success = WindowManager.shared.undoLastOperation()
 
             // Extended window control - use SystemActionsManager
             case .maximizeHeight, .maximizeWidth, .minimizeAll, .restoreAllMinimized:
-                SystemActionsManager.shared.execute(actionToExecute)
+                success = SystemActionsManager.shared.execute(actionToExecute)
 
             // Multi-monitor & Spaces
             case .moveToNextScreen:
-                WindowManager.shared.moveToNextScreen()
+                success = WindowManager.shared.moveToNextScreen()
 
             case .moveToPrevScreen:
-                WindowManager.shared.moveToPrevScreen()
+                success = WindowManager.shared.moveToPrevScreen()
 
             case .spaceLeft, .spaceRight, .moveToNextSpace, .moveToPrevSpace:
-                SystemActionsManager.shared.execute(actionToExecute)
+                success = SystemActionsManager.shared.execute(actionToExecute)
 
             // Desktop & System actions - use SystemActionsManager
             case .missionControl, .showDesktop, .appExpose, .launchpad,
                  .spotlight, .lockScreen, .startScreensaver:
-                SystemActionsManager.shared.execute(actionToExecute)
+                success = SystemActionsManager.shared.execute(actionToExecute)
 
             // Application control - use SystemActionsManager
             case .quitApp, .hideApp, .hideOthers, .switchApp, .previousApp:
-                SystemActionsManager.shared.execute(actionToExecute)
+                success = SystemActionsManager.shared.execute(actionToExecute)
 
             // Tab control - use SystemActionsManager
             case .newTab, .closeTab, .nextTab, .prevTab:
-                SystemActionsManager.shared.execute(actionToExecute)
+                success = SystemActionsManager.shared.execute(actionToExecute)
 
             // Media control - use SystemActionsManager
             case .playPause, .nextTrack, .prevTrack, .volumeUp, .volumeDown, .volumeMute:
-                SystemActionsManager.shared.execute(actionToExecute)
+                success = SystemActionsManager.shared.execute(actionToExecute)
 
             // Brightness control - use SystemActionsManager
             case .brightnessUp, .brightnessDown:
-                SystemActionsManager.shared.execute(actionToExecute)
+                success = SystemActionsManager.shared.execute(actionToExecute)
 
             // Screenshot - use SystemActionsManager
             case .screenshot, .screenshotArea, .screenshotWindow:
-                SystemActionsManager.shared.execute(actionToExecute)
+                success = SystemActionsManager.shared.execute(actionToExecute)
 
             // Custom shortcut - use SystemActionsManager with ruleId
             case .customShortcut:
-                SystemActionsManager.shared.execute(actionToExecute, ruleId: ruleIdToExecute)
+                success = SystemActionsManager.shared.execute(actionToExecute, ruleId: ruleIdToExecute)
 
             case .none:
-                break
+                success = false
+            }
+
+            DispatchQueue.main.async {
+                let text = success
+                    ? actionToExecute.shortName
+                    : String(format: L("action_failed_format"), actionToExecute.displayName)
+                FeedbackHUD.shared.flashAction(text: text)
             }
         }
 
@@ -784,6 +860,192 @@ class GestureEngine {
 
     // MARK: - Utility
 
+    private func rebaseTrackingReference(centroid: MTVector, touches: [MTTouch], timestamp: Double) {
+        initialCentroid = centroid
+        currentCentroid = centroid
+        previousCentroid = centroid
+        referenceTouchPositions = touches.map(\.normalizedVector)
+        smoothedTranslation = nil
+        lockedDirection = nil
+        activeGestureKind = nil
+        lockedFingerCount = 0
+        lastSwipeVector = MTVector(x: 0, y: 0)
+        lastSwipeDistance = 0
+        lastResolvedSwipeDirection = nil
+        lastSwipeExecutionThreshold = 0
+        lastPinchRatio = 1
+        didExecuteGestureAction = false
+        gestureStartTime = timestamp
+        touchDownTime = timestamp
+        totalMovement = 0
+        maxDisplacementFromStart = 0
+        isTapCandidate = true
+        initialPinchDistance = (fingerCount == 2 && isPinchEnabled) ? calculateAverageDistance(touches) : 0
+    }
+
+    private func calculateGestureTranslation(for touches: [MTTouch], fallbackCentroid: MTVector) -> MTVector {
+        guard !referenceTouchPositions.isEmpty else {
+            guard let start = initialCentroid else {
+                return MTVector(x: 0, y: 0)
+            }
+            return MTVector(x: fallbackCentroid.x - start.x, y: fallbackCentroid.y - start.y)
+        }
+
+        let pairs = pairTouchPositions(reference: referenceTouchPositions, current: touches.map(\.normalizedVector))
+        guard !pairs.isEmpty else {
+            guard let start = initialCentroid else {
+                return MTVector(x: 0, y: 0)
+            }
+            return MTVector(x: fallbackCentroid.x - start.x, y: fallbackCentroid.y - start.y)
+        }
+
+        var sumDx: Float = 0
+        var sumDy: Float = 0
+
+        for pair in pairs {
+            sumDx += pair.current.x - pair.reference.x
+            sumDy += pair.current.y - pair.reference.y
+        }
+
+        let count = Float(pairs.count)
+        return MTVector(x: sumDx / count, y: sumDy / count)
+    }
+
+    private func pairTouchPositions(reference: [MTVector], current: [MTVector]) -> [(reference: MTVector, current: MTVector)] {
+        guard !reference.isEmpty, !current.isEmpty else { return [] }
+
+        var remainingReference = reference
+        var remainingCurrent = current
+        var pairs: [(reference: MTVector, current: MTVector)] = []
+        pairs.reserveCapacity(min(reference.count, current.count))
+
+        while !remainingReference.isEmpty && !remainingCurrent.isEmpty {
+            var bestReferenceIndex = 0
+            var bestCurrentIndex = 0
+            var bestDistance = Float.greatestFiniteMagnitude
+
+            for (referenceIndex, referenceTouch) in remainingReference.enumerated() {
+                for (currentIndex, currentTouch) in remainingCurrent.enumerated() {
+                    let dx = currentTouch.x - referenceTouch.x
+                    let dy = currentTouch.y - referenceTouch.y
+                    let distance = (dx * dx) + (dy * dy)
+                    if distance < bestDistance {
+                        bestDistance = distance
+                        bestReferenceIndex = referenceIndex
+                        bestCurrentIndex = currentIndex
+                    }
+                }
+            }
+
+            let matchedReference = remainingReference.remove(at: bestReferenceIndex)
+            let matchedCurrent = remainingCurrent.remove(at: bestCurrentIndex)
+            pairs.append((reference: matchedReference, current: matchedCurrent))
+        }
+
+        return pairs
+    }
+
+    private func smoothSwipeTranslation(_ translation: MTVector) -> MTVector {
+        guard let smoothedTranslation else {
+            smoothedTranslation = translation
+            return translation
+        }
+
+        let blended = MTVector(
+            x: (smoothedTranslation.x * (1 - swipeDirectionSmoothingFactor)) + (translation.x * swipeDirectionSmoothingFactor),
+            y: (smoothedTranslation.y * (1 - swipeDirectionSmoothingFactor)) + (translation.y * swipeDirectionSmoothingFactor)
+        )
+        self.smoothedTranslation = blended
+        return blended
+    }
+
+    private func scheduleReleaseConfirmation(timestamp: Double) {
+        guard releaseDebounceTimer == nil else { return }
+
+        let timer = DispatchSource.makeTimerSource(queue: processingQueue)
+        timer.schedule(deadline: .now() + releaseDebounceInterval)
+        timer.setEventHandler { [weak self] in
+            self?.releaseDebounceTimer?.cancel()
+            self?.releaseDebounceTimer = nil
+            self?.handleConfirmedRelease(timestamp: timestamp)
+        }
+        releaseDebounceTimer = timer
+        timer.resume()
+    }
+
+    private func cancelReleaseConfirmation() {
+        releaseDebounceTimer?.cancel()
+        releaseDebounceTimer = nil
+    }
+
+    private func handleConfirmedRelease(timestamp: Double) {
+        if state == .began || state == .changed {
+            tryFinalizeGestureOnRelease(timestamp: timestamp)
+            finalizeGesture()
+        } else if isTapCandidate && isTapEnabled && peakTouchingFingers > 0 {
+            let touchDuration = timestamp - touchDownTime
+            let effectiveThreshold = effectiveTapMovementThreshold(for: peakTouchingFingers)
+            let movementBudget = effectiveThreshold * 2.2
+            if maxDisplacementFromStart < effectiveThreshold &&
+                totalMovement < movementBudget &&
+                touchDuration < tapMaxDuration {
+                fingerCount = peakTouchingFingers
+                #if DEBUG
+                print("[GestureEngine] Tap candidate: \(fingerCount)F, duration: \(String(format: "%.3f", touchDuration))s, displacement: \(maxDisplacementFromStart)")
+                #endif
+                handleTapDetected(timestamp: timestamp)
+            } else {
+                #if DEBUG
+                if isFingerCountEnabled(peakTouchingFingers) {
+                    let reason: String
+                    if maxDisplacementFromStart >= effectiveThreshold {
+                        reason = "displacement \(String(format: "%.4f", maxDisplacementFromStart)) >= \(String(format: "%.4f", effectiveThreshold))"
+                    } else if totalMovement >= movementBudget {
+                        reason = "path \(String(format: "%.4f", totalMovement)) >= \(String(format: "%.4f", movementBudget))"
+                    } else {
+                        reason = "duration \(String(format: "%.3f", touchDuration))s >= \(tapMaxDuration)s"
+                    }
+                    print("[GestureEngine] Tap rejected: \(peakTouchingFingers)F, \(reason)")
+                }
+                #endif
+            }
+        }
+
+        resetState()
+    }
+
+    private func tryFinalizeGestureOnRelease(timestamp: Double) {
+        guard !didExecuteGestureAction else { return }
+
+        let gestureFingerCount = lockedFingerCount > 0 ? lockedFingerCount : max(fingerCount, peakTouchingFingers)
+
+        switch activeGestureKind {
+        case .pinch:
+            guard gestureFingerCount == 2, isPinchEnabled else { return }
+            if lastPinchRatio <= Float(config.pinchInThreshold) + pinchReleaseTolerance {
+                let action = getPinchAction(direction: .pinchIn)
+                executeAction(action.action, timestamp: timestamp, ruleId: action.ruleId, gestureName: "捏合")
+            } else if lastPinchRatio >= Float(config.pinchOutThreshold) - pinchReleaseTolerance {
+                let action = getPinchAction(direction: .pinchOut)
+                executeAction(action.action, timestamp: timestamp, ruleId: action.ruleId, gestureName: "张开")
+            }
+
+        case .swipe, .none:
+            guard isSwipeEnabled(for: gestureFingerCount) else { return }
+            let completionThreshold = max(lastSwipeExecutionThreshold, Float(config.swipeThreshold)) * swipeReleaseCompletionRatio
+            guard lastSwipeDistance >= completionThreshold else { return }
+            guard let direction = lockedDirection ?? lastResolvedSwipeDirection else { return }
+
+            let gestureName = String(
+                format: L("gesture_swipe_format"),
+                gestureFingerCount,
+                direction.displayName
+            )
+            let action = getSwipeAction(fingerCount: gestureFingerCount, direction: direction)
+            executeAction(action.action, timestamp: timestamp, ruleId: action.ruleId, gestureName: gestureName)
+        }
+    }
+
     private func calculateCentroid(_ touches: [MTTouch]) -> MTVector {
         var sumX: Float = 0
         var sumY: Float = 0
@@ -821,20 +1083,34 @@ class GestureEngine {
     }
 
     private func resetState() {
+        cancelReleaseConfirmation()
         state = .possible
         initialCentroid = nil
         currentCentroid = nil
         previousCentroid = nil
         lockedDirection = nil
+        referenceTouchPositions.removeAll(keepingCapacity: true)
+        smoothedTranslation = nil
         initialPinchDistance = 0
+        lastPinchRatio = 1
         fingerCount = 0
+        lockedFingerCount = 0
+        activeGestureKind = nil
+        activeDevice = nil
         velocityX = 0
         velocityY = 0
+        lastFrameTime = 0
         currentPreviewDirection = nil
+        lastSwipeVector = MTVector(x: 0, y: 0)
+        lastSwipeDistance = 0
+        lastResolvedSwipeDirection = nil
+        lastSwipeExecutionThreshold = 0
+        didExecuteGestureAction = false
 
         // Reset tap candidate state (but not tap sequence tracking)
         isTapCandidate = false
         totalMovement = 0
+        maxDisplacementFromStart = 0
         peakTouchingFingers = 0
         wasAllTouching = false
 

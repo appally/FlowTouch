@@ -305,7 +305,7 @@ class SystemActionsManager {
             return simulateKeyPress(keyCode: 0x15, modifiers: [CGEventFlags.maskCommand, CGEventFlags.maskShift])  // Cmd+Shift+4
 
         case .screenshotWindow:
-            return simulateKeyPress(keyCode: 0x17, modifiers: [CGEventFlags.maskCommand, CGEventFlags.maskShift])  // Cmd+Shift+5
+            return simulateWindowScreenshotMode()
 
         default:
             // Other actions (window layout, etc.) should be handled by WindowManager
@@ -465,23 +465,40 @@ class SystemActionsManager {
         return simulateKeyPress(keyCode: CGKeyCode(shortcut.keyCode), modifiers: flags)
     }
 
+    private func simulateWindowScreenshotMode() -> Bool {
+        // Cmd+Shift+4 enters area capture, then Space switches to window capture mode.
+        let success = simulateKeyPress(
+            keyCode: 0x15,
+            modifiers: [CGEventFlags.maskCommand, CGEventFlags.maskShift]
+        )
+
+        guard success else {
+            return false
+        }
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.08) { [weak self] in
+            _ = self?.simulateKeyPress(keyCode: 0x31, modifiers: [])
+        }
+
+        return true
+    }
+
     // MARK: - System Commands
 
     private func lockScreen() -> Bool {
-        let task = Process()
-        task.launchPath = "/usr/bin/pmset"
-        task.arguments = ["displaysleepnow"]
-
-        do {
-            try task.run()
+        let lockCommand = "/System/Library/CoreServices/Menu Extras/User.menu/Contents/Resources/CGSession"
+        if runCommand(lockCommand, arguments: ["-suspend"]) {
             #if DEBUG
-            print("[SystemActions] Lock screen executed")
+            print("[SystemActions] Lock screen executed via CGSession")
             #endif
             return true
-        } catch {
-            print("[SystemActions] Lock screen failed: \(error)")
-            return false
         }
+
+        let fallbackSuccess = runCommand("/usr/bin/pmset", arguments: ["displaysleepnow"])
+        if !fallbackSuccess {
+            print("[SystemActions] Lock screen failed")
+        }
+        return fallbackSuccess
     }
 
     private func startScreensaver() -> Bool {
@@ -493,7 +510,10 @@ class SystemActionsManager {
     }
 
     private func minimizeAllWindows() -> Bool {
-        // Use AppleScript for reliability
+        if setFrontmostWindowsMinimized(true) {
+            return true
+        }
+
         let script = """
         tell application "System Events"
             set frontApp to name of first application process whose frontmost is true
@@ -505,7 +525,10 @@ class SystemActionsManager {
     }
 
     private func restoreAllMinimizedWindows() -> Bool {
-        // Use AppleScript to restore minimized windows
+        if setFrontmostWindowsMinimized(false) {
+            return true
+        }
+
         let script = """
         tell application "System Events"
             set frontApp to name of first application process whose frontmost is true
@@ -534,5 +557,77 @@ class SystemActionsManager {
         print("[SystemActions] AppleScript executed successfully")
         #endif
         return true
+    }
+
+    private func setFrontmostWindowsMinimized(_ minimized: Bool) -> Bool {
+        if Thread.isMainThread {
+            return setFrontmostWindowsMinimizedOnMain(minimized)
+        }
+
+        return DispatchQueue.main.sync { [weak self] in
+            self?.setFrontmostWindowsMinimizedOnMain(minimized) ?? false
+        }
+    }
+
+    private func setFrontmostWindowsMinimizedOnMain(_ minimized: Bool) -> Bool {
+        guard AXIsProcessTrusted() else {
+            WindowManager.shared.requestAccessibilityPermission()
+            return false
+        }
+
+        guard let frontApp = NSWorkspace.shared.frontmostApplication else {
+            return false
+        }
+
+        let appRef = AXUIElementCreateApplication(frontApp.processIdentifier)
+        var windowsRef: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(appRef, kAXWindowsAttribute as CFString, &windowsRef) == .success,
+              let windows = windowsRef as? [AXUIElement] else {
+            return false
+        }
+
+        let targetState: CFBoolean = minimized ? kCFBooleanTrue : kCFBooleanFalse
+        var handledAnyWindow = false
+        var success = false
+
+        for window in windows {
+            var minimizedRef: CFTypeRef?
+            guard AXUIElementCopyAttributeValue(window, kAXMinimizedAttribute as CFString, &minimizedRef) == .success else {
+                continue
+            }
+
+            handledAnyWindow = true
+            let isCurrentlyMinimized = (minimizedRef as? NSNumber)?.boolValue ?? false
+            if isCurrentlyMinimized == minimized {
+                success = true
+                continue
+            }
+
+            let setResult = AXUIElementSetAttributeValue(window, kAXMinimizedAttribute as CFString, targetState)
+            if setResult == .success {
+                success = true
+            } else {
+                #if DEBUG
+                print("[SystemActions] Failed to set minimized=\(minimized) for window, error: \(setResult.rawValue)")
+                #endif
+            }
+        }
+
+        return handledAnyWindow && success
+    }
+
+    private func runCommand(_ launchPath: String, arguments: [String]) -> Bool {
+        let task = Process()
+        task.executableURL = URL(fileURLWithPath: launchPath)
+        task.arguments = arguments
+
+        do {
+            try task.run()
+            task.waitUntilExit()
+            return task.terminationStatus == 0
+        } catch {
+            print("[SystemActions] Command failed (\(launchPath)): \(error)")
+            return false
+        }
     }
 }
