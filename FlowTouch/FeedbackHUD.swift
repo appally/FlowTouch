@@ -40,9 +40,22 @@ class FeedbackHUD {
     private var screenFrame: CGRect = .zero
     private var visibleFrame: CGRect = .zero
 
+    /// visibleFrame converted to window-local coordinates (subtracting screenFrame.origin)
+    /// Fixes multi-monitor offset where visibleFrame uses global Cocoa coordinates
+    private var localVisibleFrame: CGRect {
+        CGRect(
+            x: visibleFrame.origin.x - screenFrame.origin.x,
+            y: visibleFrame.origin.y - screenFrame.origin.y,
+            width: visibleFrame.width,
+            height: visibleFrame.height
+        )
+    }
+
     // State
     private var isPreviewVisible = false
     private var currentScreen: NSScreen?  // Track which screen we're on
+    private var lastActionFlashText: String?
+    private var lastActionFlashTime: CFTimeInterval = 0
 
     // MARK: - Setup
 
@@ -231,13 +244,13 @@ class FeedbackHUD {
         // Animate in if not already visible
         if !isPreviewVisible {
             isPreviewVisible = true
+            preview.removeAllAnimations()
+            preview.opacity = 1  // Set model value before animation
 
             let fadeIn = CABasicAnimation(keyPath: "opacity")
             fadeIn.fromValue = 0
             fadeIn.toValue = 1
             fadeIn.duration = HUDConfig.previewFadeInDuration
-            fadeIn.fillMode = .forwards
-            fadeIn.isRemovedOnCompletion = false
             preview.add(fadeIn, forKey: "fadeIn")
         }
     }
@@ -257,13 +270,13 @@ class FeedbackHUD {
         guard let preview = previewLayer, isPreviewVisible else { return }
 
         isPreviewVisible = false
+        preview.removeAllAnimations()
+        preview.opacity = 0  // Set model value before animation
 
         let fadeOut = CABasicAnimation(keyPath: "opacity")
         fadeOut.fromValue = 1
         fadeOut.toValue = 0
         fadeOut.duration = HUDConfig.previewFadeOutDuration
-        fadeOut.fillMode = .forwards
-        fadeOut.isRemovedOnCompletion = false
         preview.add(fadeOut, forKey: "fadeOut")
     }
 
@@ -281,6 +294,13 @@ class FeedbackHUD {
     private func flashActionOnMain(text: String, icon: String? = nil) {
         // Update screen in case user moved focus to different monitor
         updateScreenIfNeeded()
+
+        let now = CACurrentMediaTime()
+        if text == lastActionFlashText, now - lastActionFlashTime < 0.2 {
+            return
+        }
+        lastActionFlashText = text
+        lastActionFlashTime = now
 
         guard let actionLayer = actionLayer, let textLayer = actionTextLayer else { return }
 
@@ -343,6 +363,9 @@ class FeedbackHUD {
         // Fade out after delay
         DispatchQueue.main.asyncAfter(deadline: .now() + HUDConfig.actionDisplayDuration) { [weak self] in
             guard let actionLayer = self?.actionLayer else { return }
+            actionLayer.removeAllAnimations()
+            actionLayer.opacity = 0  // Set model value
+            actionLayer.transform = CATransform3DMakeScale(0.95, 0.95, 1.0)
 
             // Scale down slightly while fading
             let scaleDown = CABasicAnimation(keyPath: "transform.scale")
@@ -358,8 +381,6 @@ class FeedbackHUD {
             let group = CAAnimationGroup()
             group.animations = [scaleDown, fadeOut]
             group.duration = HUDConfig.previewFadeOutDuration
-            group.fillMode = .forwards
-            group.isRemovedOnCompletion = false
             actionLayer.add(group, forKey: "dismiss")
         }
     }
@@ -438,13 +459,13 @@ class FeedbackHUD {
 
     private func hideWaitingOnMain() {
         guard let actionLayer = actionLayer else { return }
+        actionLayer.removeAllAnimations()
+        actionLayer.opacity = 0  // Set model value
 
         let fadeOut = CABasicAnimation(keyPath: "opacity")
-        fadeOut.fromValue = actionLayer.opacity
+        fadeOut.fromValue = 1
         fadeOut.toValue = 0
         fadeOut.duration = 0.1
-        fadeOut.fillMode = .forwards
-        fadeOut.isRemovedOnCompletion = false
         actionLayer.add(fadeOut, forKey: "fadeOut")
 
         // Restore default styling
@@ -480,11 +501,12 @@ class FeedbackHUD {
 
     private func calculatePreviewRect(for direction: SnapDirection) -> CGRect {
         // Use visible frame (excludes menu bar and dock)
-        // Convert from Cocoa coordinates to layer coordinates
-        let x = visibleFrame.origin.x
-        let y = visibleFrame.origin.y
-        let w = visibleFrame.width
-        let h = visibleFrame.height
+        // Convert from global Cocoa coordinates to window-local layer coordinates
+        let local = localVisibleFrame
+        let x = local.origin.x
+        let y = local.origin.y
+        let w = local.width
+        let h = local.height
 
         // Add small inset for visual clarity
         let inset: CGFloat = 4
@@ -543,7 +565,7 @@ class FeedbackHUD {
     }
 
     private func updateScreenInfoOnMain() {
-        guard let screen = NSScreen.main else { return }
+        guard let screen = getTargetScreen() ?? NSScreen.main else { return }
         screenFrame = screen.frame
         visibleFrame = screen.visibleFrame
 

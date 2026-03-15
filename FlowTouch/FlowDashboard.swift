@@ -237,22 +237,9 @@ struct BreathingIndicator: View {
             .shadow(color: isActive ? Color.green.opacity(0.6) : .clear, radius: isActive ? 4 : 0)
             .opacity(isAnimating && isActive ? 1.0 : 0.6)
             .scaleEffect(isAnimating && isActive ? 1.1 : 1.0)
-            .onAppear {
-                withAnimation(Animation.easeInOut(duration: 2.0).repeatForever(autoreverses: true)) {
-                    isAnimating = true
-                }
-            }
-            .onChange(of: isActive) { _, active in
-                if active {
-                    withAnimation(Animation.easeInOut(duration: 2.0).repeatForever(autoreverses: true)) {
-                        isAnimating = true
-                    }
-                } else {
-                    withAnimation(.default) {
-                        isAnimating = false
-                    }
-                }
-            }
+            .animation(.easeInOut(duration: 2.0).repeatForever(autoreverses: true), value: isAnimating)
+            .animation(.default, value: isActive)
+            .onAppear { isAnimating = true }
     }
 }
 
@@ -323,8 +310,8 @@ struct RuleRow: View {
                     .fill(
                         LinearGradient(
                             colors: [
-                                categoryColor(for: rule.action).opacity(rule.isEnabled ? 0.15 : 0.05),
-                                categoryColor(for: rule.action).opacity(rule.isEnabled ? 0.05 : 0.02)
+                                rule.action.category.swiftColor.opacity(rule.isEnabled ? 0.15 : 0.05),
+                                rule.action.category.swiftColor.opacity(rule.isEnabled ? 0.05 : 0.02)
                             ],
                             startPoint: .topLeading,
                             endPoint: .bottomTrailing
@@ -333,12 +320,12 @@ struct RuleRow: View {
                     .frame(width: 42, height: 42) // Slightly larger container
                     .overlay(
                         Circle()
-                            .stroke(categoryColor(for: rule.action).opacity(rule.isEnabled ? 0.3 : 0.05), lineWidth: 1)
+                            .stroke(rule.action.category.swiftColor.opacity(rule.isEnabled ? 0.3 : 0.05), lineWidth: 1)
                     )
                 
                 Image(systemName: rule.trigger.icon)
                     .font(.system(size: 18, weight: .regular))
-                    .foregroundColor(rule.isEnabled ? categoryColor(for: rule.action) : .secondary)
+                    .foregroundColor(rule.isEnabled ? rule.action.category.swiftColor : .secondary)
             }
             .scaleEffect(isHovering ? 1.05 : 1.0)
             .animation(.spring(response: 0.3, dampingFraction: 0.7), value: isHovering)
@@ -417,21 +404,6 @@ struct RuleRow: View {
             return NSWorkspace.shared.icon(forFile: appUrl.path)
         }
         return nil
-    }
-    
-    private func categoryColor(for action: WindowAction) -> Color {
-        switch action.category {
-        case .layout: return .blue
-        case .window: return .purple
-        case .multiMonitor: return .orange
-        case .desktop: return .green
-        case .apps: return .pink
-        case .tabs: return .cyan
-        case .media: return .pink
-        case .screenshot: return .yellow
-        case .custom: return .indigo
-        case .other: return .gray
-        }
     }
 }
 

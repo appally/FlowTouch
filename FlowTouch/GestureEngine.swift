@@ -76,18 +76,28 @@ class GestureEngine {
     // Preview state
     private var currentPreviewDirection: SnapDirection?
     private var pendingPreviewDirection: SnapDirection?
+    private var didShowSnapPreviewForCurrentGesture = false
     private var previewDebounceTimer: DispatchSourceTimer?
     private let previewDebounceInterval: TimeInterval = 0.08  // 80ms debounce
     private var releaseDebounceTimer: DispatchSourceTimer?
 
     // Learning mode - shows gesture recognition without executing actions
-    private(set) var isLearningMode: Bool = false
+    // ⚠️ Thread Safety: _isLearningMode is only read/written on processingQueue.
+    // External access must use the `isLearningMode` computed property which routes through syncOnQueue.
+    private var _isLearningMode: Bool = false
+
+    /// Thread-safe accessor for learning mode status
+    var isLearningMode: Bool {
+        syncOnQueue { _isLearningMode }
+    }
     private var learningModeCallback: ((String, String) -> Void)?  // (gesture, action)
 
     // Tap detection state
     private var tapCount: Int = 0
     private var lastTapTime: Double = 0
     private var lastTapFingerCount: Int = 0
+    private var lastExecutedTapSignature: TapExecutionSignature?
+    private var lastExecutedTapTime: Double = 0
     private var touchDownTime: Double = 0
     private var totalMovement: Float = 0
     private var isTapCandidate: Bool = false
@@ -110,6 +120,7 @@ class GestureEngine {
     private let tapMovementThreshold: Float = 0.045  // Base threshold for 1–2 finger taps
     private let tapMaxDuration: TimeInterval = 0.40  // Allow slightly longer taps (increased from 0.35)
     private let tapCooldown: TimeInterval = 0.12
+    private let tapDedupWindow: TimeInterval = 0.35
 
     private var tapSequenceTimeout: TimeInterval {
         min(max(config.tapTimeout, 0.18), 0.45)
@@ -133,7 +144,7 @@ class GestureEngine {
     func enableLearningMode(callback: @escaping (String, String) -> Void) {
         asyncOnQueue { [weak self] in
             guard let self = self else { return }
-            self.isLearningMode = true
+            self._isLearningMode = true
             self.learningModeCallback = callback
             #if DEBUG
             print("[GestureEngine] Learning mode enabled")
@@ -145,7 +156,7 @@ class GestureEngine {
     func disableLearningMode() {
         asyncOnQueue { [weak self] in
             guard let self = self else { return }
-            self.isLearningMode = false
+            self._isLearningMode = false
             self.learningModeCallback = nil
             #if DEBUG
             print("[GestureEngine] Learning mode disabled")
@@ -265,6 +276,16 @@ class GestureEngine {
         lastTapFingerCount = 0
     }
 
+    private func cancelPendingTapExecutionIfContinuingSequence(fingerCount: Int, timestamp: Double) {
+        guard tapTimer != nil,
+              fingerCount == lastTapFingerCount,
+              timestamp - lastTapTime < tapSequenceTimeout else { return }
+
+        tapTimer?.cancel()
+        tapTimer = nil
+        FeedbackHUD.shared.hideWaitingIndicator()
+    }
+
     // MARK: - Process Frame
 
     func processFrame(device: MTDeviceRef, timestamp: Double, touches: [MTTouch]) {
@@ -297,6 +318,7 @@ class GestureEngine {
         }
 
         fingerCount = touches.count
+        cancelPendingTapExecutionIfContinuingSequence(fingerCount: fingerCount, timestamp: timestamp)
 
         // Check if this finger count is enabled (tolerate brief count drops)
         let currentEnabled = isFingerCountEnabled(fingerCount)
@@ -601,6 +623,7 @@ class GestureEngine {
 
             self.currentPreviewDirection = pending
             self.pendingPreviewDirection = nil
+            self.didShowSnapPreviewForCurrentGesture = true
             DispatchQueue.main.async {
                 FeedbackHUD.shared.showSnapPreview(direction: pending)
             }
@@ -624,16 +647,20 @@ class GestureEngine {
     private func executeAction(_ action: WindowAction, timestamp: Double, ruleId: UUID? = nil, gestureName: String? = nil) {
         guard action != .none else { return }
         didExecuteGestureAction = true
+        let shouldSuppressLearningFeedback = shouldSuppressLearningFeedback(for: action)
+        let shouldSuppressRuntimeSuccessFeedback = shouldSuppressRuntimeSuccessFeedback(for: action)
 
         // Hide preview
         hidePreview()
 
         // Learning mode: show feedback but don't execute
-        if isLearningMode {
+        if _isLearningMode {
             let gesture = gestureName ?? "手势"
             let actionName = action.displayName
             learningModeCallback?(gesture, actionName)
-            FeedbackHUD.shared.flashAction(text: "✓ \(gesture) → \(actionName)")
+            if !shouldSuppressLearningFeedback {
+                FeedbackHUD.shared.flashAction(text: "✓ \(gesture) → \(actionName)")
+            }
             lastActionTime = timestamp
             resetState()
             return
@@ -717,6 +744,8 @@ class GestureEngine {
             }
 
             DispatchQueue.main.async {
+                guard !success || !shouldSuppressRuntimeSuccessFeedback else { return }
+
                 let text = success
                     ? actionToExecute.shortName
                     : String(format: L("action_failed_format"), actionToExecute.displayName)
@@ -766,7 +795,7 @@ class GestureEngine {
             if doubleTapResult.action == .none && tripleTapResult.action == .none {
                 // No multi-tap configured, execute immediately
                 executeTapAction(for: .singleTap, timestamp: timestamp)
-                tapCount = 0
+                cancelTapSequence()
             } else {
                 // Wait for potential follow-up
                 scheduleTapExecution(tapType: .singleTap, fingerCount: fingerCount, timestamp: timestamp)
@@ -780,7 +809,7 @@ class GestureEngine {
                 print("[GestureEngine] Executing double-tap immediately (no triple configured)")
                 #endif
                 executeTapAction(for: .doubleTap, timestamp: timestamp)
-                tapCount = 0
+                cancelTapSequence()
             } else {
                 // Wait for potential third tap
                 scheduleTapExecution(tapType: .doubleTap, fingerCount: fingerCount, timestamp: timestamp)
@@ -789,12 +818,12 @@ class GestureEngine {
         case 3:
             // Triple tap: execute immediately
             executeTapAction(for: .tripleTap, timestamp: timestamp)
-            tapCount = 0
+            cancelTapSequence()
 
         default:
             // Beyond triple, treat as triple
             executeTapAction(for: .tripleTap, timestamp: timestamp)
-            tapCount = 0
+            cancelTapSequence()
         }
 
         #if DEBUG
@@ -833,7 +862,7 @@ class GestureEngine {
 
             self.lastTapFingerCount = capturedFingerCount
             self.executeTapAction(for: finalTapType, timestamp: CACurrentMediaTime())
-            self.tapCount = 0
+            self.cancelTapSequence()
         }
         tapTimer = timer
         timer.resume()
@@ -843,6 +872,21 @@ class GestureEngine {
         let result = getTapAction(fingerCount: lastTapFingerCount, tapType: tapType)
 
         guard result.action != .none else { return }
+
+        let signature = TapExecutionSignature(
+            fingerCount: lastTapFingerCount,
+            tapType: tapType,
+            action: result.action,
+            ruleId: result.ruleId
+        )
+
+        if lastExecutedTapSignature == signature,
+           timestamp - lastExecutedTapTime < tapDedupWindow {
+            #if DEBUG
+            print("[GestureEngine] Suppressed duplicate tap execution: \(lastTapFingerCount)F \(tapType.displayName) -> \(result.action)")
+            #endif
+            return
+        }
 
         // Check cooldown
         guard timestamp - lastActionTime >= tapCooldown else { return }
@@ -854,8 +898,23 @@ class GestureEngine {
             tapType.displayName
         )
 
+        lastExecutedTapSignature = signature
+        lastExecutedTapTime = timestamp
+
         // Execute action with ruleId (needed for customShortcut actions)
         executeAction(result.action, timestamp: timestamp, ruleId: result.ruleId, gestureName: gestureName)
+    }
+
+    private func shouldSuppressLearningFeedback(for action: WindowAction) -> Bool {
+        didShowSnapPreviewForCurrentGesture && action.snapDirection != nil
+    }
+
+    private func shouldSuppressRuntimeSuccessFeedback(for action: WindowAction) -> Bool {
+        if didShowSnapPreviewForCurrentGesture && action.snapDirection != nil {
+            return true
+        }
+
+        return action.suppressesRuntimeSuccessFeedback
     }
 
     // MARK: - Utility
@@ -873,6 +932,7 @@ class GestureEngine {
         lastSwipeDistance = 0
         lastResolvedSwipeDirection = nil
         lastSwipeExecutionThreshold = 0
+        didShowSnapPreviewForCurrentGesture = false
         lastPinchRatio = 1
         didExecuteGestureAction = false
         gestureStartTime = timestamp
@@ -1101,6 +1161,8 @@ class GestureEngine {
         velocityY = 0
         lastFrameTime = 0
         currentPreviewDirection = nil
+        pendingPreviewDirection = nil
+        didShowSnapPreviewForCurrentGesture = false
         lastSwipeVector = MTVector(x: 0, y: 0)
         lastSwipeDistance = 0
         lastResolvedSwipeDirection = nil
@@ -1153,4 +1215,11 @@ class GestureEngine {
         }
         return processingQueue.sync(execute: block)
     }
+}
+
+private struct TapExecutionSignature: Equatable {
+    let fingerCount: Int
+    let tapType: TapType
+    let action: WindowAction
+    let ruleId: UUID?
 }

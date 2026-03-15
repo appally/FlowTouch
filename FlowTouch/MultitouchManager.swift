@@ -49,8 +49,10 @@ class MultitouchManager: ObservableObject {
     private var eventTap: CFMachPort?
     private var eventTapSource: CFRunLoopSource?
     private let deviceQueue = DispatchQueue(label: "FlowTouch.DeviceQueue", qos: .userInitiated)
+    private let deviceQueueKey = DispatchSpecificKey<Void>()
     private let callbackStateQueue = DispatchQueue(label: "FlowTouch.CallbackState", qos: .userInitiated)
     private var hasReceivedTouchCallback = false
+    private var lastProcessedFrameByDevice: [UInt: Int32] = [:]
 
     @Published var status: ManagerStatus = .unknown
     @Published var debugLog: String = ""
@@ -63,6 +65,10 @@ class MultitouchManager: ObservableObject {
 
     // System gesture conflicts
     @Published var systemGestureConflicts: [SystemGestureConflict] = []
+
+    private init() {
+        deviceQueue.setSpecific(key: deviceQueueKey, value: ())
+    }
 
     // MARK: - System Gesture Conflict Detection
 
@@ -196,7 +202,7 @@ class MultitouchManager: ObservableObject {
     // MARK: - Lifecycle
 
     func start() {
-        guard !isRunning else {
+        guard !syncOnDeviceQueue({ isRunning }) else {
             log("Manager already running", level: .warning)
             return
         }
@@ -212,24 +218,27 @@ class MultitouchManager: ObservableObject {
         requestInputMonitoring()
 
         // 3. Start Multitouch Engine as soon as possible (off main thread)
-        deviceQueue.async { [weak self] in
-            self?.checkDevices()
-        }
+        checkDevices()
     }
 
     func stop() {
-        guard isRunning else { return }
+        let didStop = syncOnDeviceQueue { () -> Bool in
+            guard isRunning else { return false }
 
-        log("Stopping FlowTouch Manager...")
-        for device in devices {
-            MTDeviceStop(device)
+            log("Stopping FlowTouch Manager...")
+            for device in devices {
+                MTDeviceStop(device)
+            }
+            devices.removeAll()
+            isRunning = false
+            resetCallbackValidation()
+            return true
         }
-        devices.removeAll()
-        isRunning = false
-        touchCount = 0
-        resetCallbackValidation()
+
+        guard didStop else { return }
 
         DispatchQueue.main.async {
+            self.touchCount = 0
             self.status = .unknown
             StatusBarManager.shared.updateStatus()
         }
@@ -316,6 +325,12 @@ class MultitouchManager: ObservableObject {
     // MARK: - Device Management
 
     func checkDevices() {
+        asyncOnDeviceQueue { [weak self] in
+            self?.checkDevicesOnDeviceQueue()
+        }
+    }
+
+    private func checkDevicesOnDeviceQueue() {
         if isRunning {
             log("Devices already running; skipping duplicate device check", level: .debug)
             DispatchQueue.main.async {
@@ -332,8 +347,9 @@ class MultitouchManager: ObservableObject {
         if let list = MTDeviceCreateList() {
             let refs = list.takeUnretainedValue() as NSArray
             if let typed = refs as? [MTDeviceRef], !typed.isEmpty {
-                foundDevices.append(contentsOf: typed)
-                log("MTDeviceCreateList found \(typed.count) device(s)")
+                let uniqueDevices = deduplicateDevices(typed)
+                foundDevices.append(contentsOf: uniqueDevices)
+                log("MTDeviceCreateList found \(typed.count) device(s), \(uniqueDevices.count) unique")
             } else {
                 log("MTDeviceCreateList returned empty or invalid array", level: .debug)
             }
@@ -345,7 +361,7 @@ class MultitouchManager: ObservableObject {
         if foundDevices.isEmpty {
             log("Trying MTDeviceCreateDefault as fallback...")
             if let defaultDevice = MTDeviceCreateDefault() {
-                foundDevices.append(defaultDevice)
+                foundDevices = deduplicateDevices([defaultDevice])
                 log("MTDeviceCreateDefault found a device")
             } else {
                 log("MTDeviceCreateDefault returned nil", level: .debug)
@@ -371,11 +387,11 @@ class MultitouchManager: ObservableObject {
         }
 
         // Store and start devices
-        self.devices = foundDevices
-        startDevices()
+        self.devices = deduplicateDevices(foundDevices)
+        startDevicesOnDeviceQueue()
     }
 
-    private func startDevices() {
+    private func startDevicesOnDeviceQueue() {
         resetCallbackValidation()
 
         for (index, device) in devices.enumerated() {
@@ -405,24 +421,63 @@ class MultitouchManager: ObservableObject {
         }
     }
 
-    func noteTouchCallback(frameId: Int32, numFingers: Int32) {
-        let didValidateCallback = callbackStateQueue.sync { () -> Bool in
-            if hasReceivedTouchCallback {
-                return false
+    private func deduplicateDevices(_ devices: [MTDeviceRef]) -> [MTDeviceRef] {
+        var seen = Set<UInt>()
+        return devices.filter { seen.insert(UInt(bitPattern: $0)).inserted }
+    }
+
+    private var isOnDeviceQueue: Bool {
+        DispatchQueue.getSpecific(key: deviceQueueKey) != nil
+    }
+
+    private func asyncOnDeviceQueue(_ block: @escaping () -> Void) {
+        if isOnDeviceQueue {
+            block()
+        } else {
+            deviceQueue.async(execute: block)
+        }
+    }
+
+    private func syncOnDeviceQueue<T>(_ block: () -> T) -> T {
+        if isOnDeviceQueue {
+            return block()
+        }
+        return deviceQueue.sync(execute: block)
+    }
+
+    @discardableResult
+    func registerTouchCallback(device: MTDeviceRef, frameId: Int32, numFingers: Int32) -> Bool {
+        let deviceKey = UInt(bitPattern: device)
+        let callbackUpdate = callbackStateQueue.sync { () -> (shouldProcessFrame: Bool, didValidateCallback: Bool) in
+            if lastProcessedFrameByDevice[deviceKey] == frameId {
+                return (false, false)
             }
+
+            lastProcessedFrameByDevice[deviceKey] = frameId
+
+            if hasReceivedTouchCallback {
+                return (true, false)
+            }
+
             hasReceivedTouchCallback = true
-            return true
+            return (true, true)
+        }
+
+        guard callbackUpdate.shouldProcessFrame else {
+            return false
         }
 
         let shouldUpdateTouchCounter = numFingers > 0 && frameId % 10 == 0
-        guard didValidateCallback || shouldUpdateTouchCounter else { return }
+        guard callbackUpdate.didValidateCallback || shouldUpdateTouchCounter else {
+            return true
+        }
 
         DispatchQueue.main.async {
             if shouldUpdateTouchCounter {
                 self.touchCount += 1
             }
 
-            guard didValidateCallback else { return }
+            guard callbackUpdate.didValidateCallback else { return }
 
             self.updateRunningStatusOnMain()
             if self.status == .active {
@@ -431,6 +486,8 @@ class MultitouchManager: ObservableObject {
                 self.log("Touch callback verified, but Accessibility permission is still missing.", level: .warning)
             }
         }
+
+        return true
     }
 
     // MARK: - Status Helpers
@@ -541,6 +598,7 @@ class MultitouchManager: ObservableObject {
     private func resetCallbackValidation() {
         callbackStateQueue.sync {
             hasReceivedTouchCallback = false
+            lastProcessedFrameByDevice.removeAll(keepingCapacity: true)
         }
     }
 }
@@ -556,7 +614,12 @@ func globalTouchCallback(
     timestamp: Double,
     frameId: Int32
 ) {
-    MultitouchManager.shared.noteTouchCallback(frameId: frameId, numFingers: numFingers)
+    guard MultitouchManager.shared.registerTouchCallback(device: device, frameId: frameId, numFingers: numFingers) else {
+        #if DEBUG
+        print("[Callback] Ignored duplicate frame \(frameId) for device \(device)")
+        #endif
+        return
+    }
 
     // Heartbeat logging (every ~0.5s at 120Hz)
     #if DEBUG

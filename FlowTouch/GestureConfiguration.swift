@@ -1,5 +1,6 @@
 import Foundation
 import Combine
+import SwiftUI
 
 // MARK: - Window Action Types
 
@@ -350,6 +351,20 @@ enum WindowAction: String, Codable, CaseIterable, Identifiable {
         }
     }
 
+    /// Some actions already produce strong native visual feedback in the target app/system.
+    /// Showing FlowTouch's success HUD on top of that creates a redundant second feedback layer.
+    var suppressesRuntimeSuccessFeedback: Bool {
+        switch self {
+        case .customShortcut,
+             .missionControl, .showDesktop, .appExpose, .launchpad, .spotlight,
+             .lockScreen, .startScreensaver,
+             .quitApp, .hideApp, .hideOthers, .switchApp, .previousApp:
+            return true
+        default:
+            return false
+        }
+    }
+
     var isAvailableInUI: Bool {
         switch self {
         case .moveToNextSpace, .moveToPrevSpace:
@@ -421,18 +436,18 @@ enum WindowAction: String, Codable, CaseIterable, Identifiable {
             }
         }
 
-        var color: String {
+        var swiftColor: Color {
             switch self {
-            case .layout: return "blue"
-            case .window: return "purple"
-            case .multiMonitor: return "orange"
-            case .desktop: return "green"
-            case .apps: return "red"
-            case .tabs: return "cyan"
-            case .media: return "pink"
-            case .screenshot: return "yellow"
-            case .custom: return "indigo"
-            case .other: return "gray"
+            case .layout: return .blue
+            case .window: return .purple
+            case .multiMonitor: return .orange
+            case .desktop: return .green
+            case .apps: return .pink
+            case .tabs: return .cyan
+            case .media: return .pink
+            case .screenshot: return .yellow
+            case .custom: return .indigo
+            case .other: return .gray
             }
         }
 

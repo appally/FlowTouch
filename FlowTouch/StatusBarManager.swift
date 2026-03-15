@@ -330,6 +330,10 @@ class AppSettings: ObservableObject {
 
     @Published var showDockIcon: Bool {
         didSet {
+            // Ensure at least one entry point remains visible
+            if !showDockIcon && !showMenuBarIcon {
+                showMenuBarIcon = true
+            }
             UserDefaults.standard.set(showDockIcon, forKey: "showDockIcon")
             applyDockIconPreference()
         }
@@ -337,6 +341,10 @@ class AppSettings: ObservableObject {
 
     @Published var showMenuBarIcon: Bool {
         didSet {
+            // Ensure at least one entry point remains visible
+            if !showMenuBarIcon && !showDockIcon {
+                showDockIcon = true
+            }
             UserDefaults.standard.set(showMenuBarIcon, forKey: "showMenuBarIcon")
             StatusBarManager.shared.applyMenuBarIconPreference(enabled: showMenuBarIcon)
         }

@@ -813,6 +813,11 @@ class WindowManager {
 
     private func asAXUIElement(_ value: CFTypeRef?) -> AXUIElement? {
         guard let value, CFGetTypeID(value) == AXUIElementGetTypeID() else {
+            #if DEBUG
+            if let value {
+                print("[WindowManager] WARNING: CFTypeRef type mismatch - expected AXUIElement, got typeID \(CFGetTypeID(value))")
+            }
+            #endif
             return nil
         }
         return unsafeBitCast(value, to: AXUIElement.self)
@@ -820,6 +825,11 @@ class WindowManager {
 
     private func asAXValue(_ value: CFTypeRef?) -> AXValue? {
         guard let value, CFGetTypeID(value) == AXValueGetTypeID() else {
+            #if DEBUG
+            if let value {
+                print("[WindowManager] WARNING: CFTypeRef type mismatch - expected AXValue, got typeID \(CFGetTypeID(value))")
+            }
+            #endif
             return nil
         }
         return unsafeBitCast(value, to: AXValue.self)
