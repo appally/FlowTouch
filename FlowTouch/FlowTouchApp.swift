@@ -8,143 +8,108 @@
 import SwiftUI
 import ApplicationServices
 import Cocoa
-import Combine
 
 // MARK: - Window Controller
 
 /// Manages main window visibility for menu bar app
-class MainWindowController: ObservableObject {
+@MainActor
+final class MainWindowController: NSObject {
     static let shared = MainWindowController()
 
-    @Published var shouldShowWindow = false
+    private let mainWindowIdentifier = NSUserInterfaceItemIdentifier("FlowTouchMainWindow")
+    private let windowDelegate = MainAppWindowDelegate()
+    private weak var mainWindow: NSWindow?
 
-    private var observer: NSObjectProtocol?
-    private var closeObserver: NSObjectProtocol?
-    private var fallbackWindow: NSWindow?
-
-    init() {
-        // Listen for show window notification from StatusBarManager
-        observer = NotificationCenter.default.addObserver(
-            forName: NSNotification.Name("ShowMainWindow"),
-            object: nil,
-            queue: .main
-        ) { [weak self] _ in
-            self?.showWindow()
-        }
-
-        closeObserver = NotificationCenter.default.addObserver(
-            forName: NSWindow.willCloseNotification,
-            object: nil,
-            queue: .main
-        ) { [weak self] notification in
-            guard let window = notification.object as? NSWindow else { return }
-            self?.handleWindowClosed(window)
-        }
-    }
-
-    deinit {
-        if let observer = observer {
-            NotificationCenter.default.removeObserver(observer)
-        }
-        if let closeObserver = closeObserver {
-            NotificationCenter.default.removeObserver(closeObserver)
-        }
+    private override init() {
+        super.init()
+        windowDelegate.controller = self
     }
 
     func showWindow() {
-        // Respect user preference for Dock icon visibility
-        let policy: NSApplication.ActivationPolicy = AppSettings.shared.showDockIcon ? .regular : .accessory
-        NSApplication.shared.setActivationPolicy(policy)
-        NSApplication.shared.activate(ignoringOtherApps: true)
+        applyPreferredActivationPolicy(activate: true)
+        _ = bringExistingWindowToFront()
+    }
 
-        // Try to find and show existing window first
-        if bringExistingWindowToFront() {
-            return
-        }
+    func register(window: NSWindow) {
+        guard mainWindow !== window else { return }
 
-        // No existing window found, create a fallback window directly
-        openOrCreateFallbackWindow()
+        window.identifier = mainWindowIdentifier
+        window.isReleasedWhenClosed = false
+        window.delegate = windowDelegate
+        window.collectionBehavior.insert(.moveToActiveSpace)
+        mainWindow = window
+    }
+
+    func prepareForTermination() {
+        windowDelegate.allowsClose = true
+    }
+
+    fileprivate func hideWindow(_ window: NSWindow) {
+        window.orderOut(nil)
+        applyPreferredActivationPolicy(activate: false)
     }
 
     @discardableResult
     private func bringExistingWindowToFront() -> Bool {
-        // Find the main content window (not status bar, not panels)
-        for window in NSApplication.shared.windows {
-            // Skip status bar windows and panels
-            guard isMainContentWindow(window) else { continue }
+        guard let window = resolveMainWindow() else { return false }
 
-            window.collectionBehavior.insert(.moveToActiveSpace)
-            window.makeKeyAndOrderFront(nil)
-            window.orderFrontRegardless()
-            NSApplication.shared.activate(ignoringOtherApps: true)
-            print("[MainWindowController] Brought existing window to front: \(window)")
-            return true
+        window.collectionBehavior.insert(.moveToActiveSpace)
+        if window.isMiniaturized {
+            window.deminiaturize(nil)
+        }
+        window.makeKeyAndOrderFront(nil)
+        window.orderFrontRegardless()
+        NSApplication.shared.activate(ignoringOtherApps: true)
+        print("[MainWindowController] Brought main window to front: \(window)")
+        return true
+    }
+
+    private func resolveMainWindow() -> NSWindow? {
+        if let mainWindow, mainWindow.identifier == mainWindowIdentifier {
+            return mainWindow
         }
 
+        let window = NSApplication.shared.windows.first { $0.identifier == mainWindowIdentifier }
+        mainWindow = window
+        return window
+    }
+
+    private func applyPreferredActivationPolicy(activate: Bool) {
+        let policy: NSApplication.ActivationPolicy = AppSettings.shared.showDockIcon ? .regular : .accessory
+        NSApplication.shared.setActivationPolicy(policy)
+        if activate {
+            NSApplication.shared.activate(ignoringOtherApps: true)
+        }
+    }
+}
+
+private final class MainAppWindowDelegate: NSObject, NSWindowDelegate {
+    weak var controller: MainWindowController?
+    var allowsClose = false
+
+    func windowShouldClose(_ sender: NSWindow) -> Bool {
+        guard !allowsClose else { return true }
+
+        controller?.hideWindow(sender)
         return false
     }
+}
 
-    private func isMainContentWindow(_ window: NSWindow) -> Bool {
-        if window.className == "NSStatusBarWindow" { return false }
-        if window is NSPanel { return false }
-        return window.contentView?.subviews.first(where: { String(describing: type(of: $0)).contains("NSHostingView") }) != nil
+private struct MainWindowAccessor: NSViewRepresentable {
+    func makeNSView(context: Context) -> WindowTrackingView {
+        WindowTrackingView()
     }
 
-    private func hasVisibleMainWindow() -> Bool {
-        return NSApplication.shared.windows.contains { window in
-            guard isMainContentWindow(window) else { return false }
-            return window.isVisible || window.isMiniaturized
-        }
+    func updateNSView(_ nsView: WindowTrackingView, context: Context) {
     }
+}
 
-    private func handleWindowClosed(_ window: NSWindow) {
-        if fallbackWindow === window {
-            fallbackWindow = nil
-        }
+private final class WindowTrackingView: NSView {
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
 
-        guard isMainContentWindow(window) else { return }
-
-        DispatchQueue.main.async { [weak self] in
-            guard let self = self else { return }
-            if !self.hasVisibleMainWindow() {
-                NSApplication.shared.setActivationPolicy(.accessory)
-            }
-        }
-    }
-
-    private func openOrCreateFallbackWindow() {
-        DispatchQueue.main.async { [weak self] in
-            guard let self = self else { return }
-
-            if let window = self.fallbackWindow {
-                window.collectionBehavior.insert(.moveToActiveSpace)
-                window.makeKeyAndOrderFront(nil)
-                window.orderFrontRegardless()
-                NSApplication.shared.activate(ignoringOtherApps: true)
-                return
-            }
-
-            let hostingView = NSHostingView(rootView: ContentView())
-            let window = NSWindow(
-                contentRect: NSRect(x: 0, y: 0, width: 800, height: 600),
-                styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
-                backing: .buffered,
-                defer: false
-            )
-            window.titleVisibility = .hidden
-            window.titlebarAppearsTransparent = true
-            window.toolbarStyle = .unifiedCompact
-            window.isReleasedWhenClosed = false
-            window.contentMinSize = NSSize(width: 800, height: 600)
-            window.collectionBehavior.insert(.moveToActiveSpace)
-            window.contentView = hostingView
-            window.center()
-            window.makeKeyAndOrderFront(nil)
-            window.orderFrontRegardless()
-            NSApplication.shared.activate(ignoringOtherApps: true)
-
-            self.fallbackWindow = window
-        }
+        guard let window else { return }
+        MainWindowController.shared.register(window: window)
     }
 }
 
@@ -190,6 +155,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationWillTerminate(_ notification: Notification) {
         print("[FlowTouch] Application terminating")
+        MainWindowController.shared.prepareForTermination()
         MultitouchManager.shared.stop()
     }
 
@@ -221,34 +187,15 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
 // MARK: - Main App
 
-// MARK: - Window Opener Helper View
-
-/// A helper view that can open new windows using the environment
-struct WindowOpenerView: View {
-    @Environment(\.openWindow) private var openWindow
-
-    var body: some View {
-        Color.clear
-            .frame(width: 0, height: 0)
-            .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("OpenNewWindow"))) { _ in
-                if #available(macOS 13.0, *) {
-                    openWindow(id: "main")
-                }
-            }
-    }
-}
-
 @main
 struct FlowTouchApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
     @ObservedObject var localization = LocalizationManager.shared
 
     var body: some Scene {
-        WindowGroup(id: "main") {
-            ZStack {
-                ContentView()
-                WindowOpenerView()
-            }
+        Window("FlowTouch", id: "main") {
+            ContentView()
+                .background(MainWindowAccessor())
         }
         .windowStyle(.hiddenTitleBar)
         .windowResizability(.contentSize)
