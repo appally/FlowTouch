@@ -288,3 +288,30 @@
 "清空记录" = "Clear History";
 "在触控板上尝试手势" = "Try gestures on the trackpad";
 "支持滑动、点击、捏合手势" = "Supports swipe, tap, and pinch";
+
+/* Add/Edit Rule Sheet */
+"触发条件" = "Trigger";
+"手势类型" = "Gesture Type";
+"手指数量" = "Finger Count";
+"滑动方向" = "Swipe Direction";
+"点击类型" = "Tap Type";
+"捏合方向" = "Pinch Direction";
+"执行动作" = "Action";
+"生效范围" = "Scope";
+"应用范围" = "App Scope";
+"选择应用" = "Select App";
+"未选择" = "Not Selected";
+"特定应用" = "Specific App";
+"替换" = "Replace";
+"保存" = "Save";
+"没有相关规则" = "No matching rules";
+"编辑规则" = "Edit Rule";
+"修改手势触发与执行操作" = "Modify gesture trigger and action";
+"配置新的手势触发与执行操作" = "Configure a new gesture trigger and action";
+"手势已被占用" = "Gesture Already Used";
+"conflict_current_use_format" = "Currently used for %@";
+"conflict_replace_hint" = "Click \"Replace\" to override";
+"conflict_will_replace_format" = "This gesture is used for \"%@\", saving will replace it";
+"指" = "";
+"选择触发规则的目标应用" = "Select the target app for the rule";
+"搜索应用..." = "Search apps...";

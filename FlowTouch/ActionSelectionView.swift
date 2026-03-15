@@ -49,8 +49,8 @@ struct ActionSelectionView: View {
         VStack(spacing: 0) {
             // Unify with AddRuleSheet header style (V16)
             SheetHeaderView(
-                title: "选择操作",
-                subtitle: "选择手势触发后执行的窗口操作",
+                title: L("选择操作"),
+                subtitle: L("选择手势触发后执行的窗口操作"),
                 icon: "command.circle.fill",
                 color: .secondary, // De-emphasized
                 onBack: { dismiss() } // Custom back action
@@ -81,7 +81,7 @@ struct ActionSelectionView: View {
                     }
                     .padding(.vertical, 8)
                 } header: {
-                    Text("窗口布局")
+                    Text(L("窗口布局"))
                 }
                 
                 // Window Control
@@ -92,7 +92,7 @@ struct ActionSelectionView: View {
                         }
                     }
                 } header: {
-                    Text("窗口控制")
+                    Text(L("窗口控制"))
                 }
                 
                 // Multi-Monitor & Spaces
@@ -103,7 +103,7 @@ struct ActionSelectionView: View {
                         }
                     }
                 } header: {
-                    Text("屏幕与空间")
+                    Text(L("屏幕与空间"))
                 }
                 
                 // Desktop & System
@@ -114,7 +114,7 @@ struct ActionSelectionView: View {
                         }
                     }
                 } header: {
-                    Text("桌面与系统")
+                    Text(L("桌面与系统"))
                 }
                 
                 // Application Control
@@ -125,7 +125,7 @@ struct ActionSelectionView: View {
                         }
                     }
                 } header: {
-                    Text("应用程序")
+                    Text(L("应用程序"))
                 }
                 
                 // Tab Control
@@ -136,7 +136,7 @@ struct ActionSelectionView: View {
                         }
                     }
                 } header: {
-                    Text("标签页")
+                    Text(L("标签页"))
                 }
                 
                 // Media Control
@@ -147,7 +147,7 @@ struct ActionSelectionView: View {
                         }
                     }
                 } header: {
-                    Text("媒体控制")
+                    Text(L("媒体控制"))
                 }
                 
                 // Screenshot
@@ -158,7 +158,7 @@ struct ActionSelectionView: View {
                         }
                     }
                 } header: {
-                    Text("截图")
+                    Text(L("截图"))
                 }
                 
                 // Custom Shortcut
@@ -167,7 +167,7 @@ struct ActionSelectionView: View {
                         selectWithFeedback(.customShortcut)
                     }
                 } header: {
-                    Text("自定义")
+                    Text(L("自定义"))
                 }
             }
             .formStyle(.grouped)

@@ -3,19 +3,16 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>FlowTouch | 更自然的 macOS 窗口手势</title>
+    <title>FlowTouch | 用触控板手势控制 Mac 窗口</title>
     <meta
         name="description"
-        content="FlowTouch 是一款面向 macOS 的触控板手势窗口控制工具。用更自然的手势完成窗口布局、屏幕切换与系统操作。"
+        content="FlowTouch 是一款面向 macOS 的触控板手势窗口管理工具。滑动、点击、捏合即可完成窗口布局、切换屏幕和常用系统动作。"
     >
     <meta name="theme-color" content="#f5f5f7">
     <link rel="icon" type="image/png" href="assets/flowtouch-icon.png">
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-    <div class="background-glow background-glow-left" aria-hidden="true"></div>
-    <div class="background-glow background-glow-right" aria-hidden="true"></div>
-
     <div class="page">
         <header class="topbar">
             <a class="brand" href="#top" aria-label="FlowTouch 首页">
@@ -23,179 +20,123 @@
                 <span>FlowTouch</span>
             </a>
 
-            <nav class="nav" aria-label="页面导航">
-                <a href="#overview">概览</a>
-                <a href="#details">特性</a>
-                <a href="#download">下载</a>
-            </nav>
+            <div class="topbar-center">
+                <nav class="nav" aria-label="页面导航">
+                    <a href="#features">特性</a>
+                    <a href="#download">下载</a>
+                </nav>
+            </div>
 
-            <a class="button button-secondary button-small" href="https://github.com/appally/FlowTouch" target="_blank" rel="noreferrer">
-                GitHub
+            <a class="button button-primary button-small topbar-cta" href="https://github.com/appally/FlowTouch/releases/latest" target="_blank" rel="noreferrer">
+                下载
             </a>
         </header>
 
         <main id="top">
-            <section class="hero" id="overview">
-                <div class="hero-header">
-                    <img src="assets/flowtouch-icon.png" alt="FlowTouch 图标" class="hero-icon">
-                    <p class="hero-kicker">FlowTouch for macOS</p>
-                    <h1>更自然的窗口控制方式。</h1>
-                    <p class="hero-summary">
-                        用触控板手势完成窗口布局、屏幕切换和常用系统动作。
-                        不打断当前节奏，也不需要额外记忆一套快捷键。
-                    </p>
+            <section class="hero">
+                <p class="eyebrow">给 Mac 的触控板手势规则系统</p>
+                <h1>把触控板，变成 Mac 的指令层。</h1>
+                <p class="hero-summary">
+                    FlowTouch 用三指、四指和捏合手势完成窗口布局、切屏、桌面空间、
+                    截图和快捷动作。它不只是贴窗工具，而是一套可按应用切换的手势规则系统。
+                </p>
 
-                    <div class="hero-actions">
-                        <a class="button button-primary" href="https://github.com/appally/FlowTouch/releases/latest" target="_blank" rel="noreferrer">
-                            下载最新版本
-                        </a>
-                        <a class="button button-secondary" href="#download">
-                            查看安装要求
-                        </a>
-                    </div>
-
-                    <p class="hero-meta">macOS 14.6+ · 支持简体中文 / English · 需要输入监控与辅助功能权限</p>
+                <div class="hero-actions">
+                    <a class="button button-primary" href="https://github.com/appally/FlowTouch/releases/latest" target="_blank" rel="noreferrer">
+                        下载最新版本
+                    </a>
+                    <a class="button button-secondary" href="#download">
+                        查看安装要求
+                    </a>
                 </div>
 
-                <div class="hero-preview">
-                    <div class="device-frame">
-                        <div class="window-shell">
-                            <div class="window-bar">
-                                <span class="traffic traffic-red"></span>
-                                <span class="traffic traffic-yellow"></span>
-                                <span class="traffic traffic-green"></span>
-                                <span class="window-name">FlowTouch</span>
+                <p class="hero-meta">滑动 / 点击 / 捏合 · 54 个动作 · 全局 + 应用级规则</p>
+            </section>
+
+            <section class="hero-visual" aria-label="FlowTouch 应用预览">
+                <div class="visual-halo" aria-hidden="true"></div>
+
+                <div class="app-window">
+                    <div class="window-bar">
+                        <span class="traffic traffic-red"></span>
+                        <span class="traffic traffic-yellow"></span>
+                        <span class="traffic traffic-green"></span>
+                        <span class="window-name">FlowTouch</span>
+                    </div>
+
+                    <div class="window-content">
+                        <section class="status-card">
+                            <div>
+                                <p class="caption">状态</p>
+                                <h2>FlowTouch 运行中</h2>
+                                <p>等待触控板手势</p>
+                            </div>
+                            <span class="status-dot" aria-hidden="true"></span>
+                        </section>
+
+                        <section class="mapping-card">
+                            <div class="mapping-head">
+                                <span>默认三指配置</span>
+                                <span class="pill">推荐起步方式</span>
                             </div>
 
-                            <div class="window-content">
-                                <section class="status-card">
-                                    <div class="status-copy">
-                                        <p class="caption">状态</p>
-                                        <h2>FlowTouch 运行中</h2>
-                                        <p>等待触控板手势</p>
-                                    </div>
-                                    <div class="status-indicator" aria-hidden="true"></div>
-                                </section>
-
-                                <section class="rule-card">
-                                    <div class="rule-head">
-                                        <span>推荐起步配置</span>
-                                        <span class="mini-pill">三指</span>
-                                    </div>
-
-                                    <div class="rule-grid">
-                                        <div class="rule-item">
-                                            <strong>左滑</strong>
-                                            <span>左半屏</span>
-                                        </div>
-                                        <div class="rule-item">
-                                            <strong>上滑</strong>
-                                            <span>最大化</span>
-                                        </div>
-                                        <div class="rule-item">
-                                            <strong>右滑</strong>
-                                            <span>右半屏</span>
-                                        </div>
-                                        <div class="rule-item">
-                                            <strong>下滑</strong>
-                                            <span>还原</span>
-                                        </div>
-                                    </div>
-                                </section>
-
-                                <section class="capability-row" aria-label="支持的能力">
-                                    <span>窗口布局</span>
-                                    <span>屏幕切换</span>
-                                    <span>桌面空间</span>
-                                    <span>媒体控制</span>
-                                </section>
+                            <div class="mapping-grid">
+                                <div class="mapping-item">
+                                    <strong>左滑</strong>
+                                    <span>左半屏</span>
+                                </div>
+                                <div class="mapping-item">
+                                    <strong>上滑</strong>
+                                    <span>最大化</span>
+                                </div>
+                                <div class="mapping-item">
+                                    <strong>右滑</strong>
+                                    <span>右半屏</span>
+                                </div>
+                                <div class="mapping-item">
+                                    <strong>捏合</strong>
+                                    <span>居中</span>
+                                </div>
                             </div>
+                        </section>
+
+                        <div class="capability-row" aria-label="功能范围">
+                            <span>按应用切换规则</span>
+                            <span>学习模式</span>
+                            <span>HUD 预览反馈</span>
+                            <span>系统冲突提醒</span>
                         </div>
                     </div>
                 </div>
             </section>
 
-            <section class="section section-intro" id="details">
-                <div class="section-copy">
-                    <p class="eyebrow">概览</p>
-                    <h2>把触控板手势，变成一套更顺手的桌面语言。</h2>
+            <section class="feature-strip" id="features">
+                <article class="feature">
+                    <h2>默认就顺手</h2>
+                    <p>内置 Starter 和 Full 两套预设。默认三指起步，先避开双指滚动冲突，再逐步扩展。</p>
+                </article>
+                <article class="feature">
+                    <h2>同一手势，按应用切换</h2>
+                    <p>规则支持全局和应用范围。同一个手势，在浏览器、Finder 和设计工具里可以做不同的事。</p>
+                </article>
+                <article class="feature">
+                    <h2>它不是黑盒</h2>
+                    <p>学习模式、吸附预览、状态反馈和系统手势冲突提醒都会明确告诉你它识别到了什么。</p>
+                </article>
+            </section>
+
+            <section class="statement">
+                <div class="statement-copy">
+                    <p class="eyebrow">从轻量到重度</p>
+                    <h2>先解决贴窗，再接管整套桌面流。</h2>
                     <p>
-                        FlowTouch 不是把一堆动作堆进设置页，而是尽量保留直觉。
-                        左右上下与窗口位置对应，捏合与展开对应收拢与扩展，使用方式更接近原生交互。
+                        先用三指左右上解决最常用的窗口整理。需要时，再继续加入点击、捏合、
+                        切屏、桌面空间、截图、媒体和自定义快捷动作。
                     </p>
                 </div>
-
-                <div class="feature-list">
-                    <article class="feature">
-                        <h3>以手势为中心</h3>
-                        <p>支持三指、四指滑动与点击，以及捏合手势，优先保留触控板操作的连续感。</p>
-                    </article>
-                    <article class="feature">
-                        <h3>覆盖常用动作</h3>
-                        <p>窗口布局之外，还支持显示器切换、桌面空间、标签页、媒体、截图与自定义快捷键。</p>
-                    </article>
-                    <article class="feature">
-                        <h3>首次安装更清晰</h3>
-                        <p>权限说明、状态提示和系统手势冲突提醒都在应用内给出，不需要自己猜原因。</p>
-                    </article>
-                </div>
             </section>
 
-            <section class="section">
-                <div class="split-panel">
-                    <div class="split-copy">
-                        <p class="eyebrow">使用方式</p>
-                        <h2>先用预设开始，再按自己的节奏细调。</h2>
-                        <p>
-                            应用提供快速开始和完整配置两套起步方式。你可以先直接使用推荐映射，
-                            再逐步补充多显示器、桌面空间或更复杂的应用动作。
-                        </p>
-                    </div>
-
-                    <div class="steps">
-                        <div class="step">
-                            <span class="step-index">01</span>
-                            <div>
-                                <strong>完成系统授权</strong>
-                                <p>开启输入监控和辅助功能后，FlowTouch 才能监听手势并控制窗口。</p>
-                            </div>
-                        </div>
-                        <div class="step">
-                            <span class="step-index">02</span>
-                            <div>
-                                <strong>选择起步配置</strong>
-                                <p>可以先从三指默认映射开始，减少与系统手势的重叠。</p>
-                            </div>
-                        </div>
-                        <div class="step">
-                            <span class="step-index">03</span>
-                            <div>
-                                <strong>逐步扩展规则</strong>
-                                <p>需要时再增加四指、捏合、屏幕切换或自定义快捷键动作。</p>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </section>
-
-            <section class="section">
-                <div class="stats-panel">
-                    <div class="stat">
-                        <strong>54</strong>
-                        <span>内置动作</span>
-                    </div>
-                    <div class="stat">
-                        <strong>3 类</strong>
-                        <span>主要手势类型</span>
-                    </div>
-                    <div class="stat">
-                        <strong>2 种</strong>
-                        <span>内置起步预设</span>
-                    </div>
-                </div>
-            </section>
-
-            <section class="section download-section" id="download">
+            <section class="download" id="download">
                 <div class="download-card">
                     <div class="download-copy">
                         <p class="eyebrow">下载</p>
@@ -203,6 +144,7 @@
                         <p>
                             当前版本为 1.0，最低支持 macOS 14.6。
                             推荐在带有内置触控板的 MacBook 或 Magic Trackpad 设备上使用。
+                            首次授权后，它可以常驻菜单栏，随时接管你的触控板工作流。
                         </p>
                     </div>
 
@@ -210,11 +152,16 @@
                         <a class="button button-primary" href="https://github.com/appally/FlowTouch/releases/latest" target="_blank" rel="noreferrer">
                             前往 GitHub Releases
                         </a>
+
                         <ul class="spec-list">
                             <li>系统要求：macOS 14.6 或更高版本</li>
                             <li>首次运行需要：输入监控、辅助功能权限</li>
-                            <li>硬件建议：Magic Trackpad 或 MacBook 内置触控板</li>
+                            <li>支持语言：简体中文、English</li>
                         </ul>
+
+                        <a class="source-link" href="https://github.com/appally/FlowTouch" target="_blank" rel="noreferrer">
+                            查看源码仓库
+                        </a>
                     </div>
                 </div>
             </section>

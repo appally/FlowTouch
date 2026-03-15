@@ -63,14 +63,14 @@ struct FlowDashboard: View {
             .toolbar {
                 ToolbarItem(placement: .primaryAction) {
                     Button(action: { showingAddRule = true }) {
-                        Label("添加规则", systemImage: "plus")
+                        Label(L("添加规则"), systemImage: "plus")
                     }
                 }
 
                 ToolbarItemGroup(placement: .primaryAction) {
                     if isSearchVisible {
                         HStack(spacing: 6) {
-                            TextField("搜索规则...", text: $searchText)
+                            TextField(L("搜索规则..."), text: $searchText)
                                 .textFieldStyle(.roundedBorder)
                                 .frame(minWidth: 180, maxWidth: 260)
                                 .focused($isSearchFocused)
@@ -88,7 +88,7 @@ struct FlowDashboard: View {
                                     .foregroundColor(.secondary)
                             }
                             .buttonStyle(.plain)
-                            .help("关闭搜索")
+                            .help(L("关闭搜索"))
                         }
                         .onAppear {
                             DispatchQueue.main.async { isSearchFocused = true }
@@ -100,11 +100,11 @@ struct FlowDashboard: View {
                         } label: {
                             Image(systemName: "magnifyingglass")
                         }
-                        .help("搜索")
+                        .help(L("搜索"))
                     }
 
                     Button(action: { showingSettings = true }) {
-                        Label("设置", systemImage: "gearshape")
+                        Label(L("设置"), systemImage: "gearshape")
                     }
                 }
             }
@@ -281,11 +281,11 @@ struct RuleListView: View {
                     .listRowSeparator(.hidden)
                     .listRowInsets(EdgeInsets(top: 4, leading: 12, bottom: 4, trailing: 12))
                     .contextMenu {
-                        Button("编辑") { onEdit(rule) }
-                        Button("复制") { ruleManager.duplicateRule(rule) }
+                        Button(L("编辑")) { onEdit(rule) }
+                        Button(L("复制")) { ruleManager.duplicateRule(rule) }
                         Divider()
                         Button(role: .destructive) { ruleManager.deleteRule(rule) } label: {
-                            Text("删除")
+                            Text(L("删除"))
                         }
                     }
             }
@@ -418,11 +418,11 @@ struct EmptyStateView: View {
                 .font(.system(size: 48))
                 .foregroundColor(.secondary.opacity(0.5))
             
-            Text("没有相关规则")
+            Text(L("没有相关规则"))
                 .font(.title3)
                 .foregroundColor(.secondary)
             
-            Button("添加规则") {
+            Button(L("添加规则")) {
                 onAdd()
             }
             .controlSize(.large)
@@ -493,8 +493,8 @@ struct AddRuleSheet: View {
             VStack(spacing: 0) {
                 // Custom Sheet Header (Outside Form)
                 SheetHeaderView(
-                    title: "添加规则",
-                    subtitle: "配置新的手势触发与执行操作",
+                    title: L("添加规则"),
+                    subtitle: L("配置新的手势触发与执行操作"),
                     icon: "plus.circle.fill",
                     color: .secondary, // De-emphasized to look non-interactive
                     onBack: { onDismiss() } // Unified back/close button
@@ -504,10 +504,10 @@ struct AddRuleSheet: View {
                 .padding(.bottom, 10)
                 
                 Form {
-                    Section("触发条件") {
+                    Section(L("触发条件")) {
                     // Compact Gesture Type Row
                     HStack {
-                        Text("手势类型")
+                        Text(L("手势类型"))
                         Spacer()
                         HStack(spacing: 0) {
                             ForEach(GestureTrigger.TriggerType.allCases) { type in
@@ -529,7 +529,7 @@ struct AddRuleSheet: View {
                     // Compact Finger Count Row
                     if triggerType != .pinch {
                         HStack {
-                            Text("手指数量")
+                            Text(L("手指数量"))
                             Spacer()
                             HStack(spacing: 0) {
                                 ForEach([2, 3, 4], id: \.self) { count in
@@ -549,19 +549,19 @@ struct AddRuleSheet: View {
                     }
                     
                     if triggerType == .swipe {
-                        Picker("滑动方向", selection: $swipeDirection) {
+                        Picker(L("滑动方向"), selection: $swipeDirection) {
                             ForEach(SwipeDirection.allCases) { dir in
                                 Label(dir.displayName, systemImage: dir.icon).tag(dir)
                             }
                         }
                     } else if triggerType == .tap {
-                        Picker("点击类型", selection: $tapType) {
+                        Picker(L("点击类型"), selection: $tapType) {
                             ForEach(TapType.allCases) { type in
                                 Label(type.displayName, systemImage: type.icon).tag(type)
                             }
                         }
                     } else if triggerType == .pinch {
-                        Picker("捏合方向", selection: $pinchDirection) {
+                        Picker(L("捏合方向"), selection: $pinchDirection) {
                             ForEach(PinchDirection.allCases) { dir in
                                 Label(dir.displayName, systemImage: dir.icon).tag(dir)
                             }
@@ -569,12 +569,12 @@ struct AddRuleSheet: View {
                     }
                 }
                 
-                Section("执行动作") {
+                Section(L("执行动作")) {
                     NavigationLink {
                         ActionSelectionView(selection: $selectedAction)
                     } label: {
                         HStack {
-                            Text("选择操作")
+                            Text(L("选择操作"))
                             Spacer()
                             HStack(spacing: 4) {
                                 Image(systemName: selectedAction.icon)
@@ -590,10 +590,10 @@ struct AddRuleSheet: View {
                     }
                 }
                 
-                Section("生效范围") {
-                    Picker("应用范围", selection: $scopeType) {
+                Section(L("生效范围")) {
+                    Picker(L("应用范围"), selection: $scopeType) {
                         ForEach(ScopeType.allCases) { type in
-                            Label(LocalizedStringKey(type.rawValue), systemImage: type.icon).tag(type)
+                            Label(L(type.rawValue), systemImage: type.icon).tag(type)
                         }
                     }
                     .pickerStyle(.segmented)
@@ -603,7 +603,7 @@ struct AddRuleSheet: View {
                             AppSelectionView(selectedApp: $selectedApp)
                         } label: {
                             HStack {
-                                Text("选择应用")
+                                Text(L("选择应用"))
                                 Spacer()
                                 if let app = selectedApp {
                                     HStack {
@@ -619,7 +619,7 @@ struct AddRuleSheet: View {
                                             .font(.caption)
                                     }
                                 } else {
-                                    Text("未选择")
+                                    Text(L("未选择"))
                                         .foregroundColor(.secondary)
                                 }
                             }
@@ -634,7 +634,7 @@ struct AddRuleSheet: View {
                                 .font(.system(size: 14, weight: .medium))
                                 .foregroundColor(.orange)
                             
-                            Text("此手势已用于「\(conflict.action.displayName)」，保存将会替换")
+                            Text(String(format: L("conflict_will_replace_format"), conflict.action.displayName))
                                 .font(.callout)
                                 .foregroundColor(.secondary)
                         }
@@ -656,14 +656,14 @@ struct AddRuleSheet: View {
             // Custom header used instead
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("取消") { onDismiss() }
+                    Button(L("取消")) { onDismiss() }
                         .buttonStyle(.bordered)
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button {
                         createRule()
                     } label: {
-                        Text(conflictingRule != nil ? "替换" : "添加")
+                        Text(conflictingRule != nil ? L("替换") : L("添加"))
                     }
                     .buttonStyle(.borderedProminent)
                     .tint(conflictingRule != nil ? .orange : .accentColor)
@@ -761,8 +761,8 @@ struct EditRuleSheet: View {
             VStack(spacing: 0) {
                 // Custom Sheet Header (与 AddRuleSheet 保持一致)
                 SheetHeaderView(
-                    title: "编辑规则",
-                    subtitle: "修改手势触发与执行操作",
+                    title: L("编辑规则"),
+                    subtitle: L("修改手势触发与执行操作"),
                     icon: "pencil.circle.fill",
                     color: .secondary,
                     onBack: { onDismiss() }
@@ -772,10 +772,10 @@ struct EditRuleSheet: View {
                 .padding(.bottom, 10)
                 
                 Form {
-                Section("触发条件") {
+                Section(L("触发条件")) {
                     // Compact Gesture Type Row (与 AddRuleSheet 保持一致)
                     HStack {
-                        Text("手势类型")
+                        Text(L("手势类型"))
                         Spacer()
                         HStack(spacing: 0) {
                             ForEach(GestureTrigger.TriggerType.allCases) { type in
@@ -797,7 +797,7 @@ struct EditRuleSheet: View {
                     // Compact Finger Count Row (与 AddRuleSheet 保持一致)
                     if triggerType != .pinch {
                         HStack {
-                            Text("手指数量")
+                            Text(L("手指数量"))
                             Spacer()
                             HStack(spacing: 0) {
                                 ForEach([2, 3, 4], id: \.self) { count in
@@ -817,19 +817,19 @@ struct EditRuleSheet: View {
                     }
                     
                     if triggerType == .swipe {
-                        Picker("滑动方向", selection: $swipeDirection) {
+                        Picker(L("滑动方向"), selection: $swipeDirection) {
                             ForEach(SwipeDirection.allCases) { dir in
                                 Label(dir.displayName, systemImage: dir.icon).tag(dir)
                             }
                         }
                     } else if triggerType == .tap {
-                        Picker("点击类型", selection: $tapType) {
+                        Picker(L("点击类型"), selection: $tapType) {
                             ForEach(TapType.allCases) { type in
                                 Label(type.displayName, systemImage: type.icon).tag(type)
                             }
                         }
                     } else if triggerType == .pinch {
-                        Picker("捏合方向", selection: $pinchDirection) {
+                        Picker(L("捏合方向"), selection: $pinchDirection) {
                             ForEach(PinchDirection.allCases) { dir in
                                 Label(dir.displayName, systemImage: dir.icon).tag(dir)
                             }
@@ -837,12 +837,12 @@ struct EditRuleSheet: View {
                     }
                 }
                 
-                Section("执行动作") {
+                Section(L("执行动作")) {
                     NavigationLink {
                         ActionSelectionView(selection: $selectedAction)
                     } label: {
                         HStack {
-                            Text("选择操作")
+                            Text(L("选择操作"))
                             Spacer()
                             HStack(spacing: 4) {
                                 Image(systemName: selectedAction.icon)
@@ -858,10 +858,10 @@ struct EditRuleSheet: View {
                     }
                 }
                 
-                Section("生效范围") {
-                    Picker("应用范围", selection: $scopeType) {
+                Section(L("生效范围")) {
+                    Picker(L("应用范围"), selection: $scopeType) {
                         ForEach(AddRuleSheet.ScopeType.allCases) { type in
-                            Label(LocalizedStringKey(type.rawValue), systemImage: type.icon).tag(type)
+                            Label(L(type.rawValue), systemImage: type.icon).tag(type)
                         }
                     }
                     .pickerStyle(.segmented)
@@ -871,7 +871,7 @@ struct EditRuleSheet: View {
                             AppSelectionView(selectedApp: $selectedApp)
                         } label: {
                             HStack {
-                                Text("选择应用")
+                                Text(L("选择应用"))
                                 Spacer()
                                 if let app = selectedApp {
                                     HStack {
@@ -884,7 +884,7 @@ struct EditRuleSheet: View {
                                             .foregroundColor(.secondary)
                                     }
                                 } else {
-                                    Text("未选择")
+                                    Text(L("未选择"))
                                         .foregroundColor(.secondary)
                                 }
                             }
@@ -912,16 +912,16 @@ struct EditRuleSheet: View {
                             }
                             
                             VStack(alignment: .leading, spacing: 6) {
-                                Text("手势已被占用")
+                                Text(L("手势已被占用"))
                                     .font(.system(.subheadline, design: .rounded))
                                     .fontWeight(.semibold)
                                     .foregroundColor(.primary)
                                 
-                                Text("当前用于\(conflict.action.displayName)")
+                                Text(String(format: L("conflict_current_use_format"), conflict.action.displayName))
                                     .font(.caption)
                                     .foregroundColor(.secondary)
                                 
-                                Text("点击「替换」覆盖现有配置")
+                                Text(L("conflict_replace_hint"))
                                     .font(.caption2)
                                     .foregroundColor(.secondary.opacity(0.7))
                             }
@@ -950,14 +950,14 @@ struct EditRuleSheet: View {
             // 使用自定义 SheetHeaderView，移除原生 navigationTitle
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("取消") { onDismiss() }
+                    Button(L("取消")) { onDismiss() }
                         .buttonStyle(.bordered)
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button {
                         saveRule()
                     } label: {
-                        Text(conflictingRule != nil ? "替换" : "保存")
+                        Text(conflictingRule != nil ? L("替换") : L("保存"))
                     }
                     .buttonStyle(.borderedProminent)
                     .tint(conflictingRule != nil ? .orange : .accentColor)
@@ -1208,7 +1208,7 @@ struct FingerCountCard: View {
                     }
                 }
                 
-                Text("\(count)指")
+                Text("\(count)" + L("指"))
                     .font(.system(size: 11, weight: isSelected ? .semibold : .regular))
                     .foregroundColor(isSelected ? .accentColor : .secondary)
             }
@@ -1385,8 +1385,8 @@ struct AppSelectionView: View {
         VStack(spacing: 0) {
             // Unified Header (V18)
             SheetHeaderView(
-                title: "选择应用",
-                subtitle: "选择触发规则的目标应用",
+                title: L("选择应用"),
+                subtitle: L("选择触发规则的目标应用"),
                 icon: "square.stack.3d.up.fill",
                 color: .secondary, // De-emphasized
                 onBack: { dismiss() }
@@ -1401,7 +1401,7 @@ struct AppSelectionView: View {
                     .foregroundColor(.secondary)
                     .font(.system(size: 14))
                 
-                TextField("搜索应用...", text: $searchText)
+                TextField(L("搜索应用..."), text: $searchText)
                     .textFieldStyle(.plain)
                     .font(.system(size: 13))
                 
