@@ -1,171 +1,209 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>FlowTouch | 用触控板手势控制 Mac 窗口</title>
-    <meta
-        name="description"
-        content="FlowTouch 是一款面向 macOS 的触控板手势窗口管理工具。滑动、点击、捏合即可完成窗口布局、切换屏幕和常用系统动作。"
-    >
-    <meta name="theme-color" content="#f5f5f7">
+    <meta name="description" content="FlowTouch 是一款面向 macOS 的触控板手势窗口管理工具。从高效的窗口排布，到无缝的系统掌控。">
+    <meta name="theme-color" content="#000000">
     <link rel="icon" type="image/png" href="assets/flowtouch-icon.png">
     <link rel="stylesheet" href="styles.css">
 </head>
+
 <body>
     <div class="page">
-        <header class="topbar">
+        <!-- ── Navigation ── -->
+        <header class="topbar" id="top">
             <a class="brand" href="#top" aria-label="FlowTouch 首页">
                 <img src="assets/flowtouch-icon.png" alt="FlowTouch 图标" class="brand-icon">
                 <span>FlowTouch</span>
             </a>
 
-            <div class="topbar-center">
-                <nav class="nav" aria-label="页面导航">
-                    <a href="#features">特性</a>
-                    <a href="#download">下载</a>
-                </nav>
-            </div>
-
-            <a class="button button-primary button-small topbar-cta" href="https://github.com/appally/FlowTouch/releases/latest" target="_blank" rel="noreferrer">
-                下载
+            <a class="topbar-cta" href="https://github.com/appally/FlowTouch/releases/latest" target="_blank"
+                rel="noreferrer">
+                获取应用
             </a>
         </header>
 
-        <main id="top">
-            <section class="hero">
-                <p class="eyebrow">给 Mac 的触控板手势规则系统</p>
-                <h1>把触控板，变成 Mac 的指令层。</h1>
+        <main>
+            <!-- ── Hero ── -->
+            <section class="hero reveal">
+                <p class="eyebrow">触控板的崭新指令层</p>
+                <h1>以手势，重新掌控 Mac。</h1>
                 <p class="hero-summary">
-                    FlowTouch 用三指、四指和捏合手势完成窗口布局、切屏、桌面空间、
-                    截图和快捷动作。它不只是贴窗工具，而是一套可按应用切换的手势规则系统。
+                    滑动、点击、捏合。将原本闲置的触控手势，转化为窗口布局与系统控制的高效引擎。<br>
+                    它不只是快捷工具，更是你与 Mac 交互的本能延伸。
                 </p>
 
                 <div class="hero-actions">
-                    <a class="button button-primary" href="https://github.com/appally/FlowTouch/releases/latest" target="_blank" rel="noreferrer">
-                        下载最新版本
-                    </a>
-                    <a class="button button-secondary" href="#download">
-                        查看安装要求
+                    <a class="button button-primary" href="https://github.com/appally/FlowTouch/releases/latest"
+                        target="_blank" rel="noreferrer">
+                        免费下载
                     </a>
                 </div>
 
-                <p class="hero-meta">滑动 / 点击 / 捏合 · 54 个动作 · 全局 + 应用级规则</p>
+                <p class="hero-meta">macOS 14.6+ · 免费且开源</p>
             </section>
 
-            <section class="hero-visual" aria-label="FlowTouch 应用预览">
-                <div class="visual-halo" aria-hidden="true"></div>
-
-                <div class="app-window">
-                    <div class="window-bar">
-                        <span class="traffic traffic-red"></span>
-                        <span class="traffic traffic-yellow"></span>
-                        <span class="traffic traffic-green"></span>
-                        <span class="window-name">FlowTouch</span>
+            <!-- ── Advanced 3D Tech Visual ── -->
+            <section class="hero-visual reveal" aria-label="FlowTouch 应用预览">
+                <!-- Wrapper for perspective transformation -->
+                <div class="hero-screenshot-wrapper levitate" id="hero3d">
+                    <div class="hero-screenshot">
+                        <img src="assets/main.png" alt="FlowTouch 主界面 — 规则列表" loading="lazy">
                     </div>
+                </div>
+            </section>
 
-                    <div class="window-content">
-                        <section class="status-card">
-                            <div>
-                                <p class="caption">状态</p>
-                                <h2>FlowTouch 运行中</h2>
-                                <p>等待触控板手势</p>
-                            </div>
-                            <span class="status-dot" aria-hidden="true"></span>
-                        </section>
+            <!-- ── Feature Strip (Minimal Apple Style) ── -->
+            <section class="feature-strip" id="features">
+                <article class="feature reveal delay-1">
+                    <div class="feature-icon">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="1.5">
+                            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                        </svg>
+                    </div>
+                    <h2>开箱即用的顺畅</h2>
+                    <p>内置 Starter 和 Full 预设。默认三指起步，避开基础滚动冲突，学习曲线平滑自然。</p>
+                </article>
 
-                        <section class="mapping-card">
-                            <div class="mapping-head">
-                                <span>默认三指配置</span>
-                                <span class="pill">推荐起步方式</span>
-                            </div>
+                <article class="feature reveal delay-2">
+                    <div class="feature-icon">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="1.5">
+                            <path d="M4 6h16M4 12h16m-7 6h7" />
+                        </svg>
+                    </div>
+                    <h2>依场景智能切换</h2>
+                    <p>相同的手势，在浏览器、Finder 或是设计软件里，都能执行完全不同的专属指令。</p>
+                </article>
 
-                            <div class="mapping-grid">
-                                <div class="mapping-item">
-                                    <strong>左滑</strong>
-                                    <span>左半屏</span>
-                                </div>
-                                <div class="mapping-item">
-                                    <strong>上滑</strong>
-                                    <span>最大化</span>
-                                </div>
-                                <div class="mapping-item">
-                                    <strong>右滑</strong>
-                                    <span>右半屏</span>
-                                </div>
-                                <div class="mapping-item">
-                                    <strong>捏合</strong>
-                                    <span>居中</span>
-                                </div>
-                            </div>
-                        </section>
+                <article class="feature reveal delay-3">
+                    <div class="feature-icon">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="1.5">
+                            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                            <circle cx="12" cy="12" r="3" />
+                        </svg>
+                    </div>
+                    <h2>所见即所得的反馈</h2>
+                    <p>通过学习模式、屏幕 HUD 预览与系统冲突检测，实时清晰地掌握每次手势的触发状态。</p>
+                </article>
+            </section>
 
-                        <div class="capability-row" aria-label="功能范围">
-                            <span>按应用切换规则</span>
-                            <span>学习模式</span>
-                            <span>HUD 预览反馈</span>
-                            <span>系统冲突提醒</span>
+            <!-- ── Feature Showcase ── -->
+            <section class="feature-showcase" id="showcase">
+                <!-- Showcase 1 -->
+                <div class="showcase-item reveal">
+                    <div class="showcase-copy">
+                        <h2>直觉般的规则配置。</h2>
+                        <p>
+                            滑、点、捏合。设定手指数量、挑选触发方向，并指定一个预期动作。<br>
+                            仅需三次点击，即可将复杂的终端操作转化为下意识的手指动作，剥离对键盘快捷键的死记硬背。
+                        </p>
+                    </div>
+                    <div class="showcase-visual glow-edge levitate">
+                        <img src="assets/gest.png" alt="FlowTouch 手势配置界面" loading="lazy">
+                    </div>
+                </div>
+
+                <!-- Showcase 2 -->
+                <div class="showcase-item reverse reveal">
+                    <div class="showcase-copy">
+                        <h2>海量指令，随触可达。</h2>
+                        <p>
+                            从基础的九宫格窗口排布、极速全屏、到多空间切换甚至亮度调节。<br>
+                            库内集成了 54 种高频系统操作，构成一套完整的桌面控制中枢。
+                        </p>
+                    </div>
+                    <div class="command-grid-wrapper glow-edge levitate" style="animation-delay: -4s;">
+                        <div class="command-grid massive">
+                            <!-- Row 1 (Dimmed out background icons) -->
+                            <div class="cmd-cell xs dim"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="9" rx="2" ry="2"></rect></svg></div>
+                            <div class="cmd-cell xs dim"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="12" width="18" height="9" rx="2" ry="2"></rect></svg></div>
+                            <div class="cmd-cell xs dim"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 14.899A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.5 8.242"></path><path d="M12 12v9"></path><path d="M8 17l4 4 4-4"></path></svg></div>
+                            <div class="cmd-cell xs dim"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg></div>
+                            <div class="cmd-cell xs dim"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg></div>
+
+                            <!-- Row 2 -->
+                            <div class="cmd-cell size-sm"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="4" /><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41" /></svg><span>亮度-</span></div>
+                            <div class="cmd-cell size-md"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><rect x="3" y="3" width="9" height="18" rx="2"></rect></svg><span>左半屏</span></div>
+                            <div class="cmd-cell size-lg"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"></path></svg><span>极速全<br>屏</span></div>
+                            <div class="cmd-cell size-md"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><rect x="12" y="3" width="9" height="18" rx="2"></rect></svg><span>右半屏</span></div>
+                            <div class="cmd-cell size-sm"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="5" /><line x1="12" y1="1" x2="12" y2="3" /><line x1="12" y1="21" x2="12" y2="23" /><line x1="4.22" y1="4.22" x2="5.64" y2="5.64" /><line x1="18.36" y1="18.36" x2="19.78" y2="19.78" /><line x1="1" y1="12" x2="3" y2="12" /><line x1="21" y1="12" x2="23" y2="12" /><line x1="4.22" y1="19.78" x2="5.64" y2="18.36" /><line x1="18.36" y1="5.64" x2="19.78" y2="4.22" /></svg><span>亮度+</span></div>
+
+                            <!-- Row 3 -->
+                            <div class="cmd-cell size-sm"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><line x1="23" y1="9" x2="17" y2="15"></line><line x1="17" y1="9" x2="23" y2="15"></line></svg><span>静音</span></div>
+                            <div class="cmd-cell size-md"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M19 12H5M12 19l-7-7 7-7" /></svg><span>左侧空<br>间</span></div>
+                            <div class="cmd-cell active center size-lg"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg><span>调度中<br>心</span></div>
+                            <div class="cmd-cell size-md"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M5 12h14M12 5l7 7-7 7" /></svg><span>右侧空<br>间</span></div>
+                            <div class="cmd-cell size-sm"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line></svg><span>应用面板</span></div>
+
+                            <!-- Row 4 (Dimmed out background icons) -->
+                            <div class="cmd-cell xs dim"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><polyline points="15 3 21 3 21 9"></polyline><polyline points="9 21 3 21 3 15"></polyline><line x1="21" y1="3" x2="14" y2="10"></line><line x1="3" y1="21" x2="10" y2="14"></line></svg></div>
+                            <div class="cmd-cell xs dim"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg></div>
+                            <div class="cmd-cell xs dim"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg></div>
+                            <div class="cmd-cell xs dim"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="4" y="4" width="16" height="16" rx="2" ry="2"></rect><rect x="9" y="9" width="6" height="6"></rect><line x1="9" y1="1" x2="9" y2="4"></line><line x1="15" y1="1" x2="15" y2="4"></line><line x1="9" y1="20" x2="9" y2="23"></line><line x1="15" y1="20" x2="15" y2="23"></line><line x1="20" y1="9" x2="23" y2="9"></line><line x1="20" y1="14" x2="23" y2="14"></line><line x1="1" y1="9" x2="4" y2="9"></line><line x1="1" y1="14" x2="4" y2="14"></line></svg></div>
+                            <div class="cmd-cell xs dim"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg></div>
                         </div>
                     </div>
                 </div>
             </section>
 
-            <section class="feature-strip" id="features">
-                <article class="feature">
-                    <h2>默认就顺手</h2>
-                    <p>内置 Starter 和 Full 两套预设。默认三指起步，先避开双指滚动冲突，再逐步扩展。</p>
-                </article>
-                <article class="feature">
-                    <h2>同一手势，按应用切换</h2>
-                    <p>规则支持全局和应用范围。同一个手势，在浏览器、Finder 和设计工具里可以做不同的事。</p>
-                </article>
-                <article class="feature">
-                    <h2>它不是黑盒</h2>
-                    <p>学习模式、吸附预览、状态反馈和系统手势冲突提醒都会明确告诉你它识别到了什么。</p>
-                </article>
-            </section>
-
-            <section class="statement">
-                <div class="statement-copy">
-                    <p class="eyebrow">从轻量到重度</p>
-                    <h2>先解决贴窗，再接管整套桌面流。</h2>
-                    <p>
-                        先用三指左右上解决最常用的窗口整理。需要时，再继续加入点击、捏合、
-                        切屏、桌面空间、截图、媒体和自定义快捷动作。
-                    </p>
-                </div>
-            </section>
-
-            <section class="download" id="download">
-                <div class="download-card">
+            <!-- ── Download ── -->
+            <section class="download reveal" id="download">
+                <div class="download-card glow-edge">
                     <div class="download-copy">
-                        <p class="eyebrow">下载</p>
-                        <h2>安装到你的 Mac 上。</h2>
-                        <p>
-                            当前版本为 1.0，最低支持 macOS 14.6。
-                            推荐在带有内置触控板的 MacBook 或 Magic Trackpad 设备上使用。
-                            首次授权后，它可以常驻菜单栏，随时接管你的触控板工作流。
-                        </p>
+                        <h2>化繁为简，现已就绪。</h2>
+                        <p>常驻菜单栏，无侵入式设计。极低系统占用，时刻待命接管你的触控流。</p>
                     </div>
 
-                    <div class="download-side">
-                        <a class="button button-primary" href="https://github.com/appally/FlowTouch/releases/latest" target="_blank" rel="noreferrer">
-                            前往 GitHub Releases
-                        </a>
+                    <a class="button button-primary" href="https://github.com/appally/FlowTouch/releases/latest"
+                        target="_blank" rel="noreferrer">
+                        下载最新版本 1.0
+                    </a>
 
-                        <ul class="spec-list">
-                            <li>系统要求：macOS 14.6 或更高版本</li>
-                            <li>首次运行需要：输入监控、辅助功能权限</li>
-                            <li>支持语言：简体中文、English</li>
-                        </ul>
-
-                        <a class="source-link" href="https://github.com/appally/FlowTouch" target="_blank" rel="noreferrer">
-                            查看源码仓库
-                        </a>
-                    </div>
+                    <ul class="spec-list">
+                        <li><span>要求: macOS 14.6+</span></li>
+                        <li><span>支持内置及 Magic Trackpad</span></li>
+                        <li><span>需输入监控与辅助功能权限</span></li>
+                    </ul>
                 </div>
             </section>
         </main>
+
+        <!-- ── Footer ── -->
+        <footer class="footer">
+            <p> FlowTouch (Appally) &copy; 2026. Open Source Touchpad Control for macOS.</p>
+        </footer>
     </div>
+
+    <!-- ── Interactive tech animations script ── -->
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // Scroll reveal engine
+            const reveals = document.querySelectorAll('.reveal');
+            const observer = new IntersectionObserver((entries) => {
+                entries.forEach(entry => {
+                    if (entry.isIntersecting) {
+                        entry.target.classList.add('visible');
+
+                        // If it's the hero 3D wrapper coming into view, trigger its leveling animation
+                        const hero3D = entry.target.querySelector('#hero3d');
+                        if (hero3D) hero3D.classList.add('reveal-3d-active');
+
+                        observer.unobserve(entry.target);
+                    }
+                });
+            }, {
+                threshold: 0.1,
+                rootMargin: '0px 0px -50px 0px'
+            });
+            reveals.forEach(el => observer.observe(el));
+        });
+    </script>
 </body>
+
 </html>
