@@ -90,7 +90,7 @@ img { display: block; max-width: 100%; border-radius: inherit; }
     z-index: 100;
     display: flex;
     align-items: center;
-    justify-content: space-between;
+    justify-content: center; /* Centered brand */
     padding: 16px 24px;
     margin: 0 -24px;
     background: rgba(0, 0, 0, 0.6);
@@ -103,34 +103,19 @@ img { display: block; max-width: 100%; border-radius: inherit; }
     display: inline-flex;
     align-items: center;
     gap: 16px;
-    font-size: 1.5rem;
-    font-weight: 700;
-    letter-spacing: -0.02em;
-}
-
-.brand-icon {
-    width: 44px;
-    height: 44px;
-    border-radius: 10px;
-    filter: drop-shadow(0 4px 12px rgba(255,255,255,0.15));
-}
-
-
-.topbar-cta {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    min-height: 34px;
-    padding: 0 16px;
-    border-radius: 999px;
-    background: var(--text);
-    color: var(--bg-deep);
-    font-size: 0.85rem;
+    font-size: 1.15rem; /* Slightly smaller, more refined */
     font-weight: 600;
-    transition: transform 200ms ease, opacity 200ms ease;
+    letter-spacing: -0.01em;
+    opacity: 0.9;
+    transition: opacity 200ms ease;
 }
 
-.topbar-cta:hover { transform: scale(1.02); opacity: 0.9; }
+.brand:hover {
+    opacity: 1;
+}
+
+
+/* Removed .topbar-cta styling as it's no longer used */
 
 /* ── Buttons ──────────────────────────────── */
 .button {
@@ -146,15 +131,85 @@ img { display: block; max-width: 100%; border-radius: inherit; }
     transition: all 250ms cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
+/* ── Advanced Animated Button (Codepilot style) ── */
+@property --btn-angle {
+    syntax: '<angle>';
+    initial-value: 0deg;
+    inherits: false;
+}
+
 .button-primary {
-    color: var(--bg-deep);
-    background: var(--text);
-    box-shadow: 0 0 0 1px rgba(255,255,255,1), 0 8px 30px rgba(255,255,255,0.15);
+    position: relative;
+    color: var(--text);
+    background: #050505; /* Deep dark background */
+    border: none;
+    z-index: 1; /* Ensure text is above pseudo elements */
+    overflow: visible; /* Let the glow spread */
+}
+
+/* Base border inner ring to separate gradient from content slightly */
+.button-primary::before {
+    content: '';
+    position: absolute;
+    inset: 1px;
+    border-radius: calc(999px - 1px);
+    background: #0a0a0a; /* Slightly lighter inner background */
+    z-index: -1;
+    transition: background 0.3s ease;
+}
+
+/* The Animated Gradient Border */
+.button-primary::after {
+    content: '';
+    position: absolute;
+    inset: -1.5px;
+    z-index: -2;
+    border-radius: inherit;
+    background: conic-gradient(from var(--btn-angle), 
+        rgba(255, 255, 255, 0.1) 0%, 
+        rgba(255, 255, 255, 0.1) 40%, 
+        #007aff 50%,    /* Blue accent */
+        #ff2d55 70%,    /* Pink accent */
+        rgba(255, 255, 255, 0.1) 80%, 
+        rgba(255, 255, 255, 0.1) 100%
+    );
+    animation: btn-rotate 4s linear infinite;
+    /* Mask out the inside so it's just a border */
+    -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    mask-composite: exclude;
+    padding: 1.5px; /* Border thickness */
+}
+
+/* Hover Glow (Separate element needed because pseudo is masked) */
+.button-primary .btn-text {
+    position: relative;
+    z-index: 2;
+    background: linear-gradient(180deg, #ffffff 0%, #a1a1aa 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    transition: all 0.3s ease;
+}
+
+/* Drop a blurred shadow of the animated gradient */
+.button-primary:hover::before {
+    background: #000000;
 }
 
 .button-primary:hover {
     transform: scale(1.02);
-    box-shadow: 0 0 0 1px rgba(255,255,255,1), 0 12px 40px rgba(255,255,255,0.25);
+    box-shadow: 0 10px 30px rgba(0, 122, 255, 0.3), 0 5px 15px rgba(255, 45, 85, 0.2);
+}
+
+.button-primary:hover .btn-text {
+    text-shadow: 0 0 10px rgba(255,255,255,0.5);
+}
+
+@keyframes btn-rotate {
+    0% { --btn-angle: 0deg; }
+    100% { --btn-angle: 360deg; }
 }
 
 .button-secondary {
@@ -170,13 +225,7 @@ img { display: block; max-width: 100%; border-radius: inherit; }
 }
 
 /* ── Typography & Tags ────────────────────── */
-.eyebrow {
-    font-size: 0.9rem;
-    font-weight: 600;
-    letter-spacing: 0.05em;
-    color: var(--text-secondary);
-    text-transform: uppercase;
-}
+/* Removed .eyebrow */
 
 /* ── Tech Animation: Text Reveal ──────────── */
 .gradient-text {
@@ -191,27 +240,75 @@ img { display: block; max-width: 100%; border-radius: inherit; }
     position: relative;
     max-width: 860px;
     margin: 0 auto;
-    padding: 140px 0 60px;
+    padding: 100px 0 80px; /* Adjusted padding to accommodate the icon */
     text-align: center;
     z-index: 2;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+/* ── Hero App Icon Styling ── */
+.hero-icon-wrapper {
+    position: relative;
+    width: 128px;
+    height: 128px;
+    margin: 0 auto 32px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.hero-icon-wrapper::before {
+    content: '';
+    position: absolute;
+    inset: -20px;
+    background: radial-gradient(circle, rgba(255,255,255,0.15) 0%, transparent 70%);
+    border-radius: 50%;
+    z-index: -1;
+    filter: blur(20px);
+}
+
+.hero-app-icon {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    /* Approximation of Apple's squircle */
+    border-radius: 28.5px; 
+    box-shadow: 
+        0 20px 40px -10px rgba(0,0,0,0.8),
+        0 0 0 1px rgba(255,255,255,0.1) inset, /* Inner glass border */
+        0 2px 20px rgba(255,255,255,0.15); /* Soft outer glow */
+    /* Subtle 3D lift */
+    transform: translateY(0);
+    transition: transform 0.4s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.4s ease;
+}
+
+.hero-app-icon:hover {
+    transform: translateY(-4px) scale(1.02);
+    box-shadow: 
+        0 30px 50px -15px rgba(0,0,0,1),
+        0 0 0 1px rgba(255,255,255,0.12) inset,
+        0 4px 30px rgba(255,255,255,0.25);
 }
 
 .hero h1 {
-    margin: 20px 0;
-    font-size: clamp(2.2rem, 6vw, 5.5rem);
-    line-height: 1.05;
-    letter-spacing: -0.04em;
+    margin: 0 0 24px 0;
+    font-size: clamp(2.5rem, 6vw, 5rem);
+    line-height: 1.1;
+    letter-spacing: -0.03em;
     font-weight: 700;
     white-space: nowrap;
 }
 
 .hero-summary {
-    max-width: 600px;
-    margin: 0 auto 40px;
+    max-width: 540px;
+    margin: 0 auto 48px;
     color: var(--text-secondary);
-    font-size: 1.15rem;
-    line-height: 1.6;
+    font-size: 1.25rem;
+    line-height: 1.5;
     font-weight: 400;
+    letter-spacing: -0.01em;
 }
 
 .hero-actions {
@@ -232,7 +329,7 @@ img { display: block; max-width: 100%; border-radius: inherit; }
 .hero-visual {
     position: relative;
     perspective: 2000px; /* Enable 3D space */
-    padding: 0 40px 80px;
+    padding: 0 40px 100px; /* Increased bottom padding */
     display: flex;
     justify-content: center;
     z-index: 1;
@@ -437,7 +534,7 @@ img { display: block; max-width: 100%; border-radius: inherit; }
     100% { --glow-angle: 360deg; }
 }
 
-/* ── Command Grid Interface Simulation (Massive) ── */
+/* ── Command Grid Marquee Simulation (Massive) ── */
 .command-grid-wrapper {
     position: relative;
     border-radius: var(--radius-xl);
@@ -445,18 +542,63 @@ img { display: block; max-width: 100%; border-radius: inherit; }
     backdrop-filter: blur(20px);
     -webkit-backdrop-filter: blur(20px);
     border: 1px solid rgba(255,255,255,0.08);
-    padding: 30px;
+    padding: 30px 0; /* Removing horizontal padding for flush scrolling */
     box-shadow: 0 30px 60px rgba(0,0,0,0.6);
-    overflow: hidden; /* For floating distant icons */
+    overflow: hidden; /* Hide overflow for the scrolling marquee */
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
 }
 
-/* Base grid for the foreground icons */
-.command-grid {
-    display: grid;
-    grid-template-columns: repeat(5, 1fr);
-    grid-auto-rows: max-content;
+/* Linear gradient fade out effect on left and right edges */
+.command-grid-wrapper::before,
+.command-grid-wrapper::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 60px;
+    z-index: 2;
+    pointer-events: none;
+}
+.command-grid-wrapper::before {
+    left: 0;
+    background: linear-gradient(to right, rgba(4,4,4,1) 0%, transparent 100%);
+}
+.command-grid-wrapper::after {
+    right: 0;
+    background: linear-gradient(to left, rgba(4,4,4,1) 0%, transparent 100%);
+}
+
+.marquee-track {
+    display: flex;
+    width: fit-content;
+}
+
+.marquee-content {
+    display: flex;
     gap: 16px;
-    align-items: center;
+    padding-right: 16px; /* Offset gap for seamless loop */
+    width: fit-content;
+    will-change: transform;
+}
+
+.track-left .marquee-content {
+    animation: scroll-left 15s linear infinite;
+}
+
+.track-right .marquee-content {
+    animation: scroll-right 12s linear infinite;
+}
+
+@keyframes scroll-left {
+    from { transform: translateX(0); }
+    to { transform: translateX(-50%); } /* Scrolls precisely half its length since we duped the items */
+}
+
+@keyframes scroll-right {
+    from { transform: translateX(-50%); } /* Scrolls the other way */
+    to { transform: translateX(0); }
 }
 
 .cmd-cell {
@@ -464,12 +606,16 @@ img { display: block; max-width: 100%; border-radius: inherit; }
     flex-direction: column;
     align-items: center;
     justify-content: center;
+    width: 80px; /* Unified fixed size */
+    height: 90px; /* Unified fixed size */
+    gap: 12px;
     border-radius: var(--radius-lg);
     background: rgba(255,255,255,0.02);
     border: 1px solid rgba(255,255,255,0.04);
     transition: all 0.4s cubic-bezier(0.2, 0.8, 0.2, 1);
     cursor: default;
     position: relative;
+    flex-shrink: 0; /* Essential for flex horizontal scrolling */
 }
 
 .cmd-cell svg {
@@ -478,12 +624,17 @@ img { display: block; max-width: 100%; border-radius: inherit; }
 }
 
 .cmd-cell span {
-    font-size: 0.85rem;
-    color: var(--text-muted);
+    font-size: 0.8rem; /* Scaled down slightly */
     font-weight: 500;
+    color: var(--text-muted);
     transition: color 0.3s ease;
     text-align: center;
-    line-height: 1.3;
+    line-height: 1;
+    white-space: nowrap; /* Prevent line breaks */
+    overflow: hidden;    /* In case long text spills */
+    text-overflow: ellipsis;
+    width: 100%;
+    padding: 0 4px;
 }
 
 .cmd-cell:hover, .cmd-cell.active {
@@ -493,72 +644,25 @@ img { display: block; max-width: 100%; border-radius: inherit; }
     box-shadow: 0 10px 20px rgba(0,0,0,0.2), inset 0 1px 0 rgba(255,255,255,0.1);
 }
 
-.cmd-cell:hover svg, .cmd-cell.active svg {
-    color: var(--text);
-}
-
+.cmd-cell:hover svg, .cmd-cell.active svg,
 .cmd-cell:hover span, .cmd-cell.active span {
     color: var(--text);
 }
 
-/* Specific sizes to match mockup */
-.cmd-cell.size-sm {
-    height: 100px;
-    gap: 12px;
-}
-
-.cmd-cell.size-md {
-    height: 140px;
-    gap: 14px;
-}
-
-.cmd-cell.size-lg {
-    height: 160px;
-    gap: 16px;
-}
-
-.cmd-cell.size-lg span {
-    font-size: 0.95rem;
-}
-
-/* Background/Distant Icons */
-.cmd-cell.xs {
-    height: 50px;
-    background: rgba(255,255,255,0.005);
-    border: 1px solid rgba(255,255,255,0.01);
-    border-radius: var(--radius-md);
-}
-.cmd-cell.xs svg { width: 20px; height: 20px; opacity: 0.5; }
-.cmd-cell.xs span { display: none; }
-
-.cmd-cell.dim {
-    opacity: 0.25;
-    cursor: default;
-}
-
-/* Make grid cells pulse softly to show interactivity */
+/* Specific pulse for icons within animation */
 @keyframes cell-pulse {
-    0%, 100% { background: rgba(255,255,255,0.02); border-color: rgba(255,255,255,0.03); transform: translateY(0); box-shadow: none; color: var(--text-muted); }
+    0%, 100% { background: rgba(255,255,255,0.02); border-color: rgba(255,255,255,0.03); transform: translateY(0); box-shadow: none; }
     50% { background: rgba(255,255,255,0.06); border-color: rgba(255,255,255,0.1); transform: translateY(-2px); box-shadow: 0 5px 15px rgba(0,0,0,0.2); }
 }
 
-/* Specific pulse for icons within animation */
 @keyframes cell-pulse-content {
     0%, 100% { color: var(--text-muted); }
     50% { color: var(--text); }
 }
 
-.command-grid:not(:hover) .cmd-cell:nth-child(8) { animation: cell-pulse 4s infinite 1s; }
-.command-grid:not(:hover) .cmd-cell:nth-child(8) svg,
-.command-grid:not(:hover) .cmd-cell:nth-child(8) span { animation: cell-pulse-content 4s infinite 1s; }
-
-.command-grid:not(:hover) .cmd-cell:nth-child(13) { animation: cell-pulse 4s infinite 2.5s; }
-.command-grid:not(:hover) .cmd-cell:nth-child(13) svg,
-.command-grid:not(:hover) .cmd-cell:nth-child(13) span { animation: cell-pulse-content 4s infinite 2.5s; }
-
-.command-grid:not(:hover) .cmd-cell:nth-child(12) { animation: cell-pulse 4s infinite 4s; }
-.command-grid:not(:hover) .cmd-cell:nth-child(12) svg,
-.command-grid:not(:hover) .cmd-cell:nth-child(12) span { animation: cell-pulse-content 4s infinite 4s; }
+.marquee-track:hover .marquee-content {
+    animation-play-state: paused; /* Pause scrolling on hover for readability */
+}
 
 /* ── Download ─────────────── */
 .download {
