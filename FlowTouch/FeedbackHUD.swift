@@ -56,6 +56,7 @@ class FeedbackHUD {
     private var currentScreen: NSScreen?  // Track which screen we're on
     private var lastActionFlashText: String?
     private var lastActionFlashTime: CFTimeInterval = 0
+    private var flashGeneration: Int = 0  // generation counter to cancel async dismissals
 
     // MARK: - Setup
 
@@ -360,9 +361,15 @@ class FeedbackHUD {
         fadeIn.duration = 0.1
         actionLayer.add(fadeIn, forKey: "fadeIn")
 
+        flashGeneration += 1
+        let currentGeneration = flashGeneration
+
         // Fade out after delay
         DispatchQueue.main.asyncAfter(deadline: .now() + HUDConfig.actionDisplayDuration) { [weak self] in
-            guard let actionLayer = self?.actionLayer else { return }
+            guard let self = self,
+                  let actionLayer = self.actionLayer,
+                  self.flashGeneration == currentGeneration else { return }
+            
             actionLayer.removeAllAnimations()
             actionLayer.opacity = 0  // Set model value
             actionLayer.transform = CATransform3DMakeScale(0.95, 0.95, 1.0)
@@ -476,8 +483,11 @@ class FeedbackHUD {
     private func clearOnMain() {
         hideSnapPreviewOnMain()
 
+        flashGeneration += 1 // Cancel any pending dismiss closures
+
         CATransaction.begin()
         CATransaction.setDisableActions(true)
+        actionLayer?.removeAllAnimations()
         actionLayer?.opacity = 0
         CATransaction.commit()
     }
