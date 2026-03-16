@@ -1,59 +1,112 @@
-# FlowTouch
+<p align="center">
+  <img src="docs/assets/flowtouch-icon.png" width="128" height="128" alt="FlowTouch Icon">
+</p>
 
-FlowTouch is a powerful macOS application that allows users to trigger various actions using multi-touch gestures. Built entirely in Swift and SwiftUI, it enhances productivity by bringing intuitive gesture-based commands directly to your Mac.
+<h1 align="center">FlowTouch</h1>
 
-## Features
-- **Gesture Recognition:** Custom gesture engine (`GestureEngine.swift`) capable of interpreting complex multi-touch gestures.
-- **System Integration:** Operates seamlessly with the macOS system through Accessibility and Input Monitoring APIs.
-- **Rule Management:** Advanced `RuleManager.swift` to handle triggered actions based on gesture configurations.
-- **SwiftUI Views:** Lightweight UI components focused on configuration and system status management.
+<p align="center">
+  <b>Gesture-driven productivity for macOS</b><br>
+  Turn your trackpad into a powerful command center — swipe, tap, or pinch to control windows, apps, media, and more.
+</p>
 
-## Project Architecture
-- `FlowTouch/` Core directory containing all Swift source files (Views, Managers, Gesture Handling logic).
-- `FlowTouch/FlowTouchApp.swift` Application entry point and menu bar setup.
-- `FlowTouch/Assets.xcassets` Contains the app icon and other image assets.
-- `FlowTouch.xcodeproj` The Xcode project file for building and developing the app.
+<p align="center">
+  <a href="README_CN.md">🇨🇳 中文文档</a>
+</p>
 
-## Requirements & Permissions
-To function properly, FlowTouch requires specific macOS permissions:
-- **Input Monitoring:** Needed to capture and interpret custom trackpad gestures.
-- **Accessibility:** Needed to execute window management actions and system-level commands.
-> **Note:** Rebuilding the app via Xcode may invalidate your previously granted permissions. If gestures stop responding, remove and re-add **FlowTouch** in `System Settings -> Privacy & Security`.
+---
 
-## Getting Started
+## ✨ Highlights
 
-### Development 
-You do not need a simulator runtime as this is a native macOS application. A physical trackpad (Magic Trackpad or built-in MacBook trackpad) is required for testing.
+| | |
+|---|---|
+| 🖐️ **Multi-touch gestures** | Swipe (2–5 fingers), tap (single / double / triple), pinch in & out |
+| 🪟 **50+ built-in actions** | Window snapping, media controls, screenshots, Spaces navigation, custom keyboard shortcuts, and more |
+| 🎯 **Per-app rules** | Assign different actions to the same gesture depending on the active application |
+| 🧪 **Learning mode** | Visualize recognized gestures without executing — perfect for new users |
+| 🔄 **Undo support** | Instantly revert the last window operation |
+| 💡 **Visual feedback HUD** | On-screen overlay confirms every action at a glance |
 
-1. **Open the project in Xcode:**
-   ```bash
-   open FlowTouch.xcodeproj
-   ```
-2. **Run the App:** Press `⌘R` in Xcode to run the application.
+---
 
-### Command-Line Building
-You can also compile the project directly from the terminal:
-- **Debug Build:**
-  ```bash
-  xcodebuild -project FlowTouch.xcodeproj -scheme FlowTouch -configuration Debug build
-  ```
-- **Release Build:**
-  ```bash
-  xcodebuild -project FlowTouch.xcodeproj -scheme FlowTouch -configuration Release build
-  ```
+## 🚀 Quick Start
 
-## Testing
-Currently, the project focuses on app-level manual gesture verification. 
-If adding automated tests:
-1. Create a `FlowTouchTests` target in Xcode.
-2. Place your test files inside the `FlowTouchTests/` directory.
-3. Run tests via CLI:
-   ```bash
-   xcodebuild test -project FlowTouch.xcodeproj -scheme FlowTouch -destination 'platform=macOS'
-   ```
+### Requirements
 
-## Contributing
-- **Code Style:** Standard Swift styling. 4-space indentation, trailing commas where appropriate, and use `// MARK:` to organize large files.
-- **Naming Conventions:** Use `UpperCamelCase` for types and `lowerCamelCase` for methods/properties. File names should match the main type they encapsulate (e.g., `StatusBarManager.swift`).
-- **Commits:** We follow Conventional Commits (e.g., `feat: ...`, `fix: ...`). Keep commit messages short and action-oriented (Chinese is perfectly acceptable).
-- **Pull Requests:** PRs must include a concise summary of changes, steps to test the feature/fix, and UI screenshots if applicable. If your PR modifies permission requirements, make that clear in your PR description.
+- **macOS** (native app, no simulator needed)
+- A trackpad — Magic Trackpad or built-in MacBook trackpad
+
+### Installation
+
+1. Download the latest release from [Releases](https://github.com/appally/FlowTouch/releases).
+2. Move **FlowTouch.app** to your `/Applications` folder.
+3. Launch the app and grant the required permissions (see below).
+
+### Permissions
+
+FlowTouch needs two system permissions to function:
+
+| Permission | Why |
+|---|---|
+| **Input Monitoring** | Captures raw multi-touch data from the trackpad |
+| **Accessibility** | Moves and resizes windows, simulates key events |
+
+> **Tip:** Rebuilding from Xcode may invalidate permissions. If gestures stop working, go to  
+> `System Settings → Privacy & Security` and re-add FlowTouch.
+
+---
+
+## 🎮 Supported Actions
+
+<table>
+<tr><th>Category</th><th>Actions</th></tr>
+<tr><td>🪟 Window Layout</td><td>Snap left / right / top / bottom, quarter-screen corners</td></tr>
+<tr><td>🔲 Window Control</td><td>Maximize, minimize, center, restore, close, fullscreen, undo, maximize height / width, minimize all, restore all</td></tr>
+<tr><td>🖥️ Screens & Spaces</td><td>Move window to next / previous screen, switch Spaces left / right</td></tr>
+<tr><td>🏠 Desktop & System</td><td>Mission Control, Show Desktop, App Exposé, Launchpad, Spotlight, Lock Screen, Screensaver</td></tr>
+<tr><td>📱 App Control</td><td>Quit, hide, hide others, switch app, previous app</td></tr>
+<tr><td>🗂️ Tab Control</td><td>New tab, close tab, next / previous tab</td></tr>
+<tr><td>🎵 Media</td><td>Play / Pause, next / previous track, volume up / down / mute, brightness up / down</td></tr>
+<tr><td>📸 Screenshot</td><td>Capture full screen, area, or window</td></tr>
+<tr><td>⌨️ Custom Shortcut</td><td>Trigger any keyboard shortcut you define</td></tr>
+</table>
+
+---
+
+## 🛠️ Building from Source
+
+```bash
+# Clone the repository
+git clone https://github.com/appally/FlowTouch.git
+cd FlowTouch
+
+# Open in Xcode
+open FlowTouch.xcodeproj
+# Then press ⌘R to run
+```
+
+**CLI build:**
+
+```bash
+# Debug
+xcodebuild -project FlowTouch.xcodeproj -scheme FlowTouch -configuration Debug build
+
+# Release
+xcodebuild -project FlowTouch.xcodeproj -scheme FlowTouch -configuration Release build
+```
+
+---
+
+## 🤝 Contributing
+
+| Topic | Guideline |
+|---|---|
+| **Code style** | Standard Swift — 4-space indent, `// MARK:` sections, file names match primary type |
+| **Naming** | `UpperCamelCase` for types, `lowerCamelCase` for methods & properties |
+| **Commits** | Conventional Commits (`feat:`, `fix:`, …), Chinese messages are welcome |
+| **Pull requests** | Include summary, test steps, and screenshots for UI changes |
+
+---
+
+## 📄 License
+
+See [LICENSE](LICENSE) for details.
