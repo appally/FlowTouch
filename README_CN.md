@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/assets/flowtouch-icon.png" width="128" height="128" alt="FlowTouch 图标">
+  <img src="https://flowtouch.tanbox.site/assets/flowtouch-icon.png" width="128" height="128" alt="FlowTouch 图标">
 </p>
 
 <h1 align="center">FlowTouch</h1>
